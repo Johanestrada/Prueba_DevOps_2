@@ -1,0 +1,21 @@
+# Java
+target/
+*.class
+*.jar
+
+# Spring
+application.properties
+
+# Node
+node_modules/
+dist/
+
+# Mac
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
