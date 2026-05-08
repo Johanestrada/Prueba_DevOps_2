@@ -1,0 +1,18 @@
+services:
+
+  frontend:
+    build: ./front_despacho
+
+    image: frontend-despacho:1.0
+
+    container_name: frontend-despacho
+
+    ports:
+      - "3000:80"
+
+    networks:
+      - academia-net
+
+
+networks:
+  academia-net:
