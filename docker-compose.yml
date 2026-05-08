@@ -30,7 +30,7 @@ services:
 
   ventas-back:
     build:
-      context: ./back-Ventas_SpringBoot
+      context: ./back-Ventas_SpringBoot/Springboot-API-REST
       dockerfile: Dockerfile
 
     image: ventas-back:1.0
@@ -56,22 +56,22 @@ services:
 
 
 
-  despachos-back:
-    build:
-      context: ./back-Despachos_SpringBoot
-      dockerfile: Dockerfile
-
-    image: despachos-back:1.0
-
-    container_name: despachos-back
-
-    restart: unless-stopped
-
-    ports:
-      - "8082:8080"
-
-    networks:
-      - academia-net
+#   despachos-back:
+#   build:
+#     context: ./back-Despachos_SpringBoot
+#     dockerfile: Dockerfile
+#
+#   image: despachos-back:1.0
+#
+#   container_name: despachos-back
+#
+#   restart: unless-stopped
+#
+#   ports:
+#     - "8082:8080"
+#
+#   networks:
+#     - academia-net
 
 
 
