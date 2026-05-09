@@ -2,14 +2,12 @@ services:
 
   mysql:
     image: mysql:8
-
-    container_name: mysql-db
-
+    container_name: ecommerce-mysql
     restart: unless-stopped
 
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: ventasdb
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
 
     ports:
       - "3306:3306"
@@ -18,7 +16,7 @@ services:
       - mysql_data:/var/lib/mysql
 
     networks:
-      - academia-net
+      - ecommerce-net
 
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -26,63 +24,53 @@ services:
       timeout: 5s
       retries: 5
 
-
-
   ventas-back:
     build:
       context: ./back-Ventas_SpringBoot/Springboot-API-REST
       dockerfile: Dockerfile
 
-    image: ventas-back:1.0
-
-    container_name: ventas-back
-
+    image: ecommerce-ventas-back:1.0
+    container_name: ecommerce-ventas-back
     restart: unless-stopped
 
     ports:
       - "8081:8080"
 
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ventasdb
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
 
     depends_on:
       mysql:
         condition: service_healthy
 
     networks:
-      - academia-net
+      - ecommerce-net
 
-
-
-#   despachos-back:
-#   build:
-#     context: ./back-Despachos_SpringBoot
-#     dockerfile: Dockerfile
+#  despachos-back:
+#    build:
+#      context: ./back-Despachos_SpringBoot
+#      dockerfile: Dockerfile
 #
-#   image: despachos-back:1.0
+#    image: ecommerce-despachos-back:1.0
+#    container_name: ecommerce-despachos-back
 #
-#   container_name: despachos-back
+#    restart: unless-stopped
 #
-#   restart: unless-stopped
+#    ports:
+#      - "8082:8080"
 #
-#   ports:
-#     - "8082:8080"
-#
-#   networks:
-#     - academia-net
-
-
+#    networks:
+#      - ecommerce-net
 
   frontend:
     build:
       context: ./front_despacho
       dockerfile: Dockerfile
 
-    image: frontend-despacho:1.0
-
-    container_name: frontend-despacho
+    image: ecommerce-frontend:1.0
+    container_name: ecommerce-frontend
 
     restart: unless-stopped
 
@@ -93,15 +81,11 @@ services:
       - ventas-back
 
     networks:
-      - academia-net
-
-
+      - ecommerce-net
 
 volumes:
   mysql_data:
 
-
-
 networks:
-  academia-net:
+  ecommerce-net:
     driver: bridge
