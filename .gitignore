@@ -3,8 +3,6 @@ target/
 *.class
 *.jar
 
-# Spring
-application.properties
 
 # Node
 node_modules/
