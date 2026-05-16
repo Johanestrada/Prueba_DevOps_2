@@ -107,8 +107,8 @@ resource "aws_ecs_task_definition" "ventas_back" {
     {
       name      = "ventas-back-container",
       image     = aws_ecr_repository.ventas_back.repository_url,
-      cpu       = 512,
-      memory    = 1024,
+      cpu       = 256,
+      memory    = 512,
       essential = true,
       portMappings = [
         { containerPort = 8080, hostPort = 8080 }
