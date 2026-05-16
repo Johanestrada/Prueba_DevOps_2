@@ -22,8 +22,11 @@ RUN npm run build
 # =========================
 FROM nginx:stable-alpine
 
-# Copiar configuración nginx
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Instalar envsubst y bash
+RUN apk add --no-cache gettext bash
+
+# Copiar template de configuración nginx
+COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
 
 # Copiar build generado
 COPY --from=builder /app/dist /usr/share/nginx/html
@@ -31,5 +34,5 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Exponer puerto nginx
 EXPOSE 80
 
-# Ejecutar nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Ejecutar envsubst + nginx directamente
+CMD ["/bin/bash", "-c", "envsubst '${VENTAS_BACK_HOST}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
