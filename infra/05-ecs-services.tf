@@ -100,9 +100,9 @@ resource "aws_ecs_task_definition" "ventas_back" {
         { containerPort = 8080, hostPort = 8080 }
       ],
       environment = [
-        { name = "SPRING_DATASOURCE_URL", value = "jdbc:mysql://10.0.2.185:3306/ecommerce" },
+        { name = "SPRING_DATASOURCE_URL", value = "jdbc:mysql://10.0.1.50:3306/ecommerce" },
         { name = "SPRING_DATASOURCE_USERNAME", value = "root" },
-        { name = "SPRING_DATASOURCE_PASSWORD", value = "root" }
+        { name = "SPRING_DATASOURCE_PASSWORD", value = "123456" }
       ],
       logConfiguration = {
         logDriver = "awslogs",
@@ -153,9 +153,9 @@ resource "aws_ecs_task_definition" "despachos_back" {
         { containerPort = 8080, hostPort = 8080 }
       ],
       environment = [
-        { name = "SPRING_DATASOURCE_URL", value = "jdbc:mysql://10.0.2.185:3306/ecommerce" },
+        { name = "SPRING_DATASOURCE_URL", value = "jdbc:mysql://10.0.1.50:3306/ecommerce" },
         { name = "SPRING_DATASOURCE_USERNAME", value = "root" },
-        { name = "SPRING_DATASOURCE_PASSWORD", value = "root" }
+        { name = "SPRING_DATASOURCE_PASSWORD", value = "123456" }
       ],
       logConfiguration = {
         logDriver = "awslogs",

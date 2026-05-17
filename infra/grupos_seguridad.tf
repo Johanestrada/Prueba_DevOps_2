@@ -85,11 +85,11 @@ resource "aws_security_group" "mysql_sg" {
 
 
   ingress {
-    description     = "MySQL desde backend"
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.backend_sg.id]
+    description = "MySQL desde VPC"
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
   }
 
   ingress {
