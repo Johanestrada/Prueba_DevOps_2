@@ -1,22 +1,9 @@
 # --- IAM Role para la ejecución de tareas ECS ---
-# Rol que permite a ECS descargar imágenes de ECR y enviar logs a CloudWatch.
-resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "ecs_task_execution_role"
-  assume_role_policy = jsonencode({
-    Version   = "2012-10-17",
-    Statement = [{
-      Action    = "sts:AssumeRole",
-      Effect    = "Allow",
-      Principal = {
-        Service = "ecs-tasks.amazonaws.com"
-      }
-    }]
-  })
-}
+# Usar un rol existente en la cuenta para evitar crear IAM Roles con permisos insuficientes.
+data "aws_caller_identity" "current" {}
 
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
-  role       = aws_iam_role.ecs_task_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+locals {
+  ecs_task_execution_role_arn = var.ecs_task_execution_role_arn != "" ? var.ecs_task_execution_role_arn : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.ecs_task_execution_role_name}"
 }
 
 resource "aws_ecs_cluster" "main" {
@@ -28,31 +15,13 @@ resource "aws_cloudwatch_log_group" "ecs_logs" {
   retention_in_days = 7
 }
 
-resource "aws_ecr_repository" "ventas_back" {
-  name         = "${var.project_name}-ventas-back"
-  force_delete = true
-
-  tags = {
-    Name = "${var.project_name}-ventas-back"
-  }
-}
-
-resource "aws_ecr_repository" "despachos_back" {
-  name         = "${var.project_name}-despachos-back"
-  force_delete = true
-
-  tags = {
-    Name = "${var.project_name}-despachos-back"
-  }
-}
-
 resource "aws_ecs_task_definition" "frontend" {
   family                   = "frontend-task"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "256"  # 0.25 vCPU
   memory                   = "512"  # 512 MB
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  execution_role_arn       = local.ecs_task_execution_role_arn
 
   container_definitions = jsonencode([
     {
@@ -101,7 +70,7 @@ resource "aws_ecs_task_definition" "ventas_back" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512"  # 0.5 vCPU
   memory                   = "1024" # 1 GB
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  execution_role_arn       = local.ecs_task_execution_role_arn
 
   container_definitions = jsonencode([
     {
@@ -154,7 +123,7 @@ resource "aws_ecs_task_definition" "despachos_back" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512"
   memory                   = "1024"
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  execution_role_arn       = local.ecs_task_execution_role_arn
 
   container_definitions = jsonencode([
     {

@@ -86,6 +86,9 @@ services:
     ports:
       - "3000:80"
 
+    environment:
+      - VENTAS_BACK_HOST=ventas-back:8080
+
     depends_on:
       - ventas-back
       - despachos-back
