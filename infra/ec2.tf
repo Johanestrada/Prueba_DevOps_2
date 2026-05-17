@@ -84,7 +84,7 @@ resource "aws_instance" "mysql" {
   ami           = data.aws_ami.amazon_linux.id
   instance_type = "t2.micro"
 
-  subnet_id = aws_subnet.private_subnet.id
+  subnet_id = aws_subnet.public_subnet.id
 
   key_name = var.key_pair_name
 
@@ -92,7 +92,7 @@ resource "aws_instance" "mysql" {
     aws_security_group.mysql_sg.id
   ]
 
-  associate_public_ip_address = false
+  associate_public_ip_address = true
 
   user_data = <<-EOF
     #!/bin/bash

@@ -123,11 +123,11 @@ resource "aws_ecs_service" "ventas_back" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
-  # Este servicio corre en subnets públicas
+  # Este servicio corre en subnets privadas
   network_configuration {
-    subnets         = [aws_subnet.public_subnet.id]
+    subnets         = [aws_subnet.private_subnet.id]
     security_groups = [aws_security_group.backend_sg.id]
-    assign_public_ip = true
+    assign_public_ip = false
   }
 }
 
