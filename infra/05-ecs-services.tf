@@ -68,8 +68,8 @@ resource "aws_ecs_service" "frontend" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.public_subnet.id]
-    security_groups = [aws_security_group.frontend_sg.id]
+    subnets          = [aws_subnet.public_subnet.id]
+    security_groups  = [aws_security_group.frontend_sg.id]
     assign_public_ip = true
   }
 }
@@ -134,8 +134,8 @@ resource "aws_ecs_service" "ventas_back" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.private_subnet.id]
-    security_groups = [aws_security_group.backend_sg.id]
+    subnets          = [aws_subnet.private_subnet.id]
+    security_groups  = [aws_security_group.backend_sg.id]
     assign_public_ip = false
   }
 
@@ -168,7 +168,7 @@ resource "aws_ecs_task_definition" "despachos_back" {
 
       environment = [
         {
-  name  = "SPRING_DATASOURCE_URL",
+          name  = "SPRING_DATASOURCE_URL",
           value = "jdbc:mysql://${aws_instance.mysql.private_ip}:3306/ecommerce"
         },
         {
@@ -201,8 +201,8 @@ resource "aws_ecs_service" "despachos_back" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.public_subnet.id]
-    security_groups = [aws_security_group.backend_sg.id]
+    subnets          = [aws_subnet.public_subnet.id]
+    security_groups  = [aws_security_group.backend_sg.id]
     assign_public_ip = true
   }
 }
