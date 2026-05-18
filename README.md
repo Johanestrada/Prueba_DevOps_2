@@ -1,6 +1,6 @@
 Prueba DevOps 2 - E-Commerce Deployment
 
-![Diagrama de Arquitectura del Proyecto](front_despacho/src/diagrama_pp2.png)
+![Diagrama de Arquitectura del Proyecto](assets/diagrama_pp2.png)
 
 Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, frontend React y orquestación con ECS, ECR y Terraform.
 
