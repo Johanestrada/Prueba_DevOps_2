@@ -39,35 +39,10 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Debug AWS identity
+      - name: Get AWS Account ID
+        id: get-aws-id
         run: |
-          echo "Caller identity:";
-          aws sts get-caller-identity --output table
-
-      - name: Ensure Key Pair exists (optional import)
-        env:
-          AWS_REGION: ${{ env.AWS_REGION }}
-        run: |
-          set -e
-          KEY_NAME="${{ secrets.KEY_PAIR_NAME }}"
-          if [ -z "$KEY_NAME" ]; then
-            echo "::warning::Secret KEY_PAIR_NAME is empty. Skipping key-pair check."
-            exit 0
-          fi
-
-          if aws ec2 describe-key-pairs --key-names "$KEY_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-            echo "Key pair $KEY_NAME already exists in $AWS_REGION."
-          else
-            echo "Key pair $KEY_NAME not found in $AWS_REGION."
-            if [ -n "${{ secrets.KEY_PAIR_PUBLIC }}" ]; then
-              echo "Importing public key from secret KEY_PAIR_PUBLIC..."
-              echo "${{ secrets.KEY_PAIR_PUBLIC }}" > /tmp/key.pub
-              aws ec2 import-key-pair --key-name "$KEY_NAME" --public-key-material fileb:///tmp/key.pub --region "$AWS_REGION"
-              echo "Imported key pair $KEY_NAME."
-            else
-              echo "::warning::No public key provided (secret KEY_PAIR_PUBLIC). Terraform apply may fail due to missing key pair.";
-            fi
-          fi
+          echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
 
       # ========================================
       # 3. TERRAFORM APPLY
@@ -174,7 +149,7 @@ jobs:
       # ========================================
       - name: Update ECS Service - Ventas
         env:
-          AWS_ACCOUNT_ID: ${{ steps.login-ecr.outputs.registry_id }}
+          AWS_ACCOUNT_ID: ${{ steps.get-aws-id.outputs.account_id }}
         run: |
           aws ecs update-service \
             --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
@@ -184,7 +159,7 @@ jobs:
 
       - name: Update ECS Service - Despachos
         env:
-          AWS_ACCOUNT_ID: ${{ steps.login-ecr.outputs.registry_id }}
+          AWS_ACCOUNT_ID: ${{ steps.get-aws-id.outputs.account_id }}
         run: |
           aws ecs update-service \
             --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
@@ -194,7 +169,7 @@ jobs:
 
       - name: Update ECS Service - Frontend
         env:
-          AWS_ACCOUNT_ID: ${{ steps.login-ecr.outputs.registry_id }}
+          AWS_ACCOUNT_ID: ${{ steps.get-aws-id.outputs.account_id }}
         run: |
           aws ecs update-service \
             --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
