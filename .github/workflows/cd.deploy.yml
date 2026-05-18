@@ -163,18 +163,18 @@ jobs:
         if: github.event_name == 'pull_request' # Solo comentar en PRs
         with:
           script: |
+            const shortSha = "${{ github.sha }}".substring(0, 7);
+            const runLink = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
             const output = `## 🚀 Deploy Completado
 
             ### Acceso a Servicios:
             - **Frontend**: http://${{ steps.get-ips.outputs.frontend_dns }}
-            - **Ventas API Docs**: http://${{ steps.get-ips.outputs.frontend_dns }}:8080/swagger-ui
-            - **Despachos API Docs**: http://${{ steps.get-ips.outputs.frontend_dns }}:8080/swagger-ui
             - **MySQL**: ${{ steps.get-ips.outputs.mysql_ip }}:3306
 
             ### Detalle del Despliegue:
-            - **Commit**: \`${{ github.sha.substring(0, 7) }}\`
+            - **Commit**: \`${shortSha}\`
             - **Branch**: \`${{ github.ref }}\`
-            - **Workflow Run**: Link
+            - **Workflow Run**: Ver ejecución
             `;
 
             await github.rest.issues.createComment({
