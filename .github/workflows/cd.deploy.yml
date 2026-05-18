@@ -12,18 +12,22 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     permissions:
       id-token: write
-      contents: write # Necesario para github-script
-      issues: write # Necesario para comentar en PRs
+      contents: read
+      issues: write
 
     steps:
+      # =========================
+      # 1. CODE
+      # =========================
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ========================================
-      # 1. AUTENTICACIÓN AWS
-      # ========================================
+      # =========================
+      # 2. AWS AUTH
+      # =========================
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -32,9 +36,9 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ========================================
-      # 2. LOGIN A ECR
-      # ========================================
+      # =========================
+      # 3. ECR LOGIN
+      # =========================
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -44,19 +48,11 @@ jobs:
         run: |
           echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
 
-      # ========================================
-      # 3. TERRAFORM APPLY
-      # ========================================
+      # =========================
+      # 4. TERRAFORM
+      # =========================
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Format Check
-        working-directory: infra
-        run: |
-          if ! terraform fmt -check; then
-            echo "::error::Algunos archivos de Terraform no están formateados. Ejecuta 'terraform fmt' en el directorio 'infra' y sube los cambios."
-            exit 1
-          fi
 
       - name: Terraform Init
         working-directory: infra
@@ -66,22 +62,26 @@ jobs:
           TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
         run: terraform init -input=false
 
+      - name: Terraform Format Check
+        working-directory: infra
+        run: terraform fmt -check
 
-      - name: Terraform Plan & Apply
+      - name: Terraform Plan
+        working-directory: infra
         env:
           TF_VAR_aws_region: ${{ env.AWS_REGION }}
           TF_VAR_project_name: ${{ env.PROJECT_NAME }}
           TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
         working-directory: infra
-        run: |
-          terraform plan -out=tfplan
-          terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve tfplan
 
-
-      # ========================================
-      # 4. BUILD BACKEND VENTAS
-      # ========================================
-      - name: Build and push Ventas Backend image
+      # =========================
+      # 5. BUILD BACKEND VENTAS
+      # =========================
+      - name: Build & Push Ventas Backend
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         working-directory: back-Ventas_SpringBoot/Springboot-API-REST
@@ -90,10 +90,10 @@ jobs:
           docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:${{ github.sha }}
           docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back
 
-      # ========================================
-      # 5. BUILD BACKEND DESPACHOS
-      # ========================================
-      - name: Build and push Despachos Backend image
+      # =========================
+      # 6. BUILD BACKEND DESPACHOS
+      # =========================
+      - name: Build & Push Despachos Backend
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         working-directory: back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
@@ -102,15 +102,15 @@ jobs:
           docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:${{ github.sha }}
           docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back
 
-      # ========================================
-      # 6. BUILD FRONTEND
-      # ========================================
+      # =========================
+      # 7. FRONTEND
+      # =========================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
 
-      - name: Install dependencies (Frontend)
+      - name: Install Frontend deps
         working-directory: front_despacho
         run: npm ci
 
@@ -118,7 +118,7 @@ jobs:
         working-directory: front_despacho
         run: npm run build
 
-      - name: Build and push Frontend image
+      - name: Build & Push Frontend
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         working-directory: front_despacho
@@ -127,109 +127,52 @@ jobs:
           docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:${{ github.sha }}
           docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend
 
-      # ========================================
-      # 8. FORCE ECS DEPLOYMENT
-      # ========================================
-      - name: Update ECS Service - Ventas
+      # =========================
+      # 8. FORCE ECS DEPLOY
+      # =========================
+      - name: Force deploy Ventas
         env:
           AWS_ACCOUNT_ID: ${{ steps.get-aws-id.outputs.account_id }}
         run: |
           aws ecs update-service \
             --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
             --service ventas-back-service \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
+            --force-new-deployment
 
-      - name: Update ECS Service - Despachos
+      - name: Force deploy Despachos
         env:
           AWS_ACCOUNT_ID: ${{ steps.get-aws-id.outputs.account_id }}
         run: |
           aws ecs update-service \
             --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
             --service despachos-back-service \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
+            --force-new-deployment
 
-      - name: Update ECS Service - Frontend
+      - name: Force deploy Frontend
         env:
           AWS_ACCOUNT_ID: ${{ steps.get-aws-id.outputs.account_id }}
         run: |
           aws ecs update-service \
             --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
             --service frontend-service \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
+            --force-new-deployment
 
-      # ========================================
-      # 9. OBTENER Y MOSTRAR IPs PÚBLICAS
-      # ========================================
-      - name: Get Public IPs and DNS
-        id: get-ips
+      # =========================
+      # 9. SUMMARY
+      # =========================
+      - name: Deployment Summary
         run: |
-          # Frontend ALB
-          FRONTEND_DNS=$(aws elbv2 describe-load-balancers \
-            --region ${{ env.AWS_REGION }} \
-            --query "LoadBalancers[?contains(LoadBalancerName, '${{ env.PROJECT_NAME }}-frontend')].DNSName" \
-            --output text)
-          
-          # MySQL EC2 Public IP
-          MYSQL_IP=$(aws ec2 describe-instances \
-            --region ${{ env.AWS_REGION }} \
-            --filters "Name=tag:Name,Values=${{ env.PROJECT_NAME }}-mysql" "Name=instance-state-name,Values=running" \
-            --query "Reservations[0].Instances[0].PublicIpAddress" \
-            --output text)
-          
-          echo "frontend_dns=$FRONTEND_DNS" >> $GITHUB_OUTPUT
-          echo "mysql_ip=$MYSQL_IP" >> $GITHUB_OUTPUT
-
-      # ========================================
-      # 10. COMENTAR EN EL PULL REQUEST / COMMIT
-      # ========================================
-      - name: Comment Deployment Status
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request' # Solo comentar en PRs
-        with:
-          script: |
-            const shortSha = "${{ github.sha }}".substring(0, 7);
-            const runLink = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
-            const output = `##  Deploy Completado
-
-            ### Acceso a Servicios:
-            - **Frontend**: http://${{ steps.get-ips.outputs.frontend_dns }}
-            - **MySQL**: ${{ steps.get-ips.outputs.mysql_ip }}:3306
-
-            ### Detalle del Despliegue:
-            - **Commit**: \`${shortSha}\`
-            - **Branch**: \`${{ github.ref }}\`
-            - **Workflow Run**: Ver ejecución
-            `;
-
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
-
-      # ========================================
-      # 11. RESUMEN DE SALIDA
-      # ========================================
-      - name: Display Deployment Summary
-        run: |
-          echo "=========================================="
-          echo " Deployment Completado"
-          echo "=========================================="
-          echo "Frontend: http://${{ steps.get-ips.outputs.frontend_dns }}"
-          echo "MySQL: ${{ steps.get-ips.outputs.mysql_ip }}:3306"
-          echo "Region: ${{ env.AWS_REGION }}"
+          echo "========================"
+          echo "DEPLOY DONE"
           echo "Project: ${{ env.PROJECT_NAME }}"
-          echo "=========================================="
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "========================"
 
-      # ========================================
-      # 12. NOTIFICACIÓN EN CASO DE FALLO
-      # ========================================
-      - name: Notify on Failure
+      # =========================
+      # 10. FAILURE HANDLER
+      # =========================
+      - name: Notify failure
         if: failure()
         run: |
-          echo " Deploy falló. Revisa los logs en GitHub Actions."
+          echo "Deployment failed"
           exit 1
