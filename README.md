@@ -1,49 +1,297 @@
 Prueba DevOps 2 - E-Commerce Deployment
 
-![Diagrama de Arquitectura del Proyecto](assets/diagrama_pp2.png)
-
 Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, frontend React y orquestación con ECS, ECR y Terraform.
 
-Componentes
 
-Backend Microservicios
-Ventas API (back-Ventas_SpringBoot/): Gesión de ventas y compras
-Despachos API (back-Despachos_SpringBoot/): Gestión de envíos
-Ambos en Spring Boot 3.4.4 con JPA, MySQL 8
 
-Frontend
-React + Vite (front_despacho/): UI con Tailwind CSS
-Nginx como proxy inverso
 
-Base de Datos
-MySQL 8 en EC2 pública (10.0.2.166)
-Dentro de VPC con acceso restringido desde ECS
 
-Infraestructura (Terraform)
-VPC, subnets públicas/privadas
-ECS Cluster + servicios ECR
-NAT Gateway para tráfico de egreso
-VPC Endpoints: ECR API, ECR DKR, CloudWatch Logs, STS
-Security Groups para aislamiento
 
-Estructura De Directorios
 
+## Componentes
+
+### Backend Microservicios
+- **Ventas API** (`back-Ventas_SpringBoot/`): Gestión de ventas y compras
+- **Despachos API** (`back-Despachos_SpringBoot/`): Gestión de envíos
+- Ambos en Spring Boot 3.4.4 con JPA y MySQL 8
+
+### Frontend
+- **React + Vite** (`front_despacho/`)
+- Tailwind CSS
+- Nginx como proxy inverso
+
+### Base de Datos
+- **MySQL 8** en EC2 pública
+- Acceso restringido desde ECS
+
+### Infraestructura (Terraform)
+- VPC
+- Subnets públicas y privadas
+- ECS Cluster
+- ECR
+- NAT Gateway
+- VPC Endpoints
+- Security Groups
+
+---
+
+# Despliegue Rápido
+
+## Prerequisitos
+
+- AWS CLI configurado
+- Terraform >= 1.0
+- Docker Desktop
+- Node.js 20+
+
+---
+
+## 1. Clonar Repositorio
+
+```bash
+git clone <repo-url>
+cd Prueba_DevOps_2
+```
+
+---
+
+## 2. Configurar AWS CLI
+
+```bash
+aws configure
+```
+
+Ingresar:
+- Access Key
+- Secret Key
+- Region: `us-east-1`
+- Output format: `json`
+
+---
+
+## 3. Desplegar Infraestructura
+
+```bash
+cd infra
+
+terraform plan
+
+terraform apply -auto-approve
+```
+
+---
+
+## 4. Obtener DNS del Frontend
+
+```bash
+aws elbv2 describe-load-balancers \
+  --region us-east-1 \
+  --query 'LoadBalancers[?LoadBalancerName==`prueba_devops_2-frontend-alb`].DNSName' \
+  --output text
+```
+
+---
+
+# CI/CD Pipeline
+
+## Flujo
+
+```text
+develop/main
+      ↓
+GitHub Actions
+      ↓
+Build & Test
+      ↓
+Docker Build
+      ↓
+Push ECR
+      ↓
+Terraform Apply
+      ↓
+ECS Deploy
+```
+
+---
+
+## Secrets GitHub
+
+```text
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+AWS_REGION
+ECR_REGISTRY
+MYSQL_ROOT_PASSWORD
+MYSQL_DATABASE
+```
+
+---
+
+# Variables Terraform
+
+Archivo:
+
+```text
+infra/terraform.tfvars
+```
+
+Contenido:
+
+```hcl
+aws_region    = "us-east-1"
+project_name  = "prueba_devops_2"
+key_pair_name = "prueba_2"
+```
+
+---
+
+# Acceso a Servicios
+
+| Servicio | Acceso |
+|----------|---------|
+| Frontend | ALB DNS |
+| Ventas API | http://ALB:8080/swagger-ui |
+| Despachos API | http://ALB:8080/swagger-ui |
+| MySQL | EC2-IP:3306 |
+
+---
+
+# Docker Build Manual
+
+## Login ECR
+
+```bash
+aws ecr get-login-password --region us-east-1 | \
+docker login --username AWS --password-stdin 348374603543.dkr.ecr.us-east-1.amazonaws.com
+```
+
+---
+
+## Backend Ventas
+
+```bash
+cd back-Ventas_SpringBoot/Springboot-API-REST
+
+docker build -t 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-ventas-back:latest .
+
+docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-ventas-back:latest
+```
+
+---
+
+## Backend Despachos
+
+```bash
+cd ../../back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+
+docker build -t 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-despachos-back:latest .
+
+docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-despachos-back:latest
+```
+
+---
+
+## Frontend
+
+```bash
+cd ../../front_despacho
+
+npm install
+
+npm run build
+
+docker build -t 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-frontend:latest .
+
+docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-frontend:latest
+```
+
+---
+
+# Forzar Redeploy ECS
+
+```bash
+$cluster = "arn:aws:ecs:us-east-1:348374603543:cluster/prueba_devops_2-ecs-cluster"
+
+aws ecs update-service --cluster $cluster \
+  --service ventas-back-service \
+  --force-new-deployment --region us-east-1
+
+aws ecs update-service --cluster $cluster \
+  --service despachos-back-service \
+  --force-new-deployment --region us-east-1
+
+aws ecs update-service --cluster $cluster \
+  --service frontend-service \
+  --force-new-deployment --region us-east-1
+```
+
+---
+
+# Logs CloudWatch
+
+```bash
+aws logs tail /ecs/prueba_devops_2 --since 1h --follow
+```
+
+---
+
+# Monitoreo
+
+## CloudWatch
+- Log Group: `/ecs/prueba_devops_2`
+- Métricas CPU
+- Métricas memoria
+- Métricas red
+
+## ECS
+- Cluster ECS
+- Servicios ECS
+- Tasks ECS
+
+---
+
+# Troubleshooting
+
+## ECS no inicia tareas
+
+```bash
+aws ecs describe-services --cluster <arn> --services <service-name>
+```
+
+```bash
+aws logs tail /ecs/prueba_devops_2 --follow
+```
+
+```bash
+aws ecr describe-images --repository-name <name>
+```
+
+---
+
+## Ver imágenes ECR
+
+```bash
+aws ecr list-images \
+  --repository-name prueba_devops_2-ventas-back \
+  --region us-east-1
+```
+
+---
+
+# Estructura del Proyecto
+
+```text
 Prueba_DevOps_2/
 ├── .github/
 │   └── workflows/
-│       ├── ci.backend.yml         # CI: Testing
-│       └── cd.deploy.yml          # CD: Deploy
-├── infra/                          # Terraform IaC
-│   ├── main.tf
-│   ├── vpc.tf
-│   ├── ec2.tf
-│   ├── ecr.tf
-│   ├── ecr_endpoints.tf
-│   ├── 05-ecs-services.tf
-│   ├── terraform.tfvars
-│   └── ...
-├── back-Ventas_SpringBoot/         # Microservicio Ventas
-├── back-Despachos_SpringBoot/      # Microservicio Despachos
-├── front_despacho/                 # Frontend React
-├── docker-compose.yml              # Local dev
+│       ├── ci.backend.yml
+│       └── cd.deploy.yml
+├── infra/
+├── back-Ventas_SpringBoot/
+├── back-Despachos_SpringBoot/
+├── front_despacho/
+├── docker-compose.yml
 └── README.md
+```
+
+---

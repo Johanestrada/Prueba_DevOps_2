@@ -173,25 +173,31 @@ jobs:
       # 8. FORCE ECS DEPLOYMENT
       # ========================================
       - name: Update ECS Service - Ventas
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.login-ecr.outputs.registry_id }}
         run: |
           aws ecs update-service \
-            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
             --service ventas-back-service \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
       - name: Update ECS Service - Despachos
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.login-ecr.outputs.registry_id }}
         run: |
           aws ecs update-service \
-            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
             --service despachos-back-service \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
       - name: Update ECS Service - Frontend
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.login-ecr.outputs.registry_id }}
         run: |
           aws ecs update-service \
-            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
             --service frontend-service \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
