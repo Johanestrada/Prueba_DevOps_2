@@ -8,11 +8,11 @@ resource "aws_security_group" "backend_sg" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "API desde frontend"
-    from_port       = 8080
-    to_port         = 8080
-    protocol        = "tcp"
-    cidr_blocks     = [aws_subnet.public_subnet.cidr_block] # Permitir tráfico desde la subnet pública donde vive el frontend
+  description     = "Frontend a backend"
+  from_port       = 8080
+  to_port         = 8080
+  protocol        = "tcp"
+  security_groups = [aws_security_group.frontend_sg.id]
   }
 
   ingress {
