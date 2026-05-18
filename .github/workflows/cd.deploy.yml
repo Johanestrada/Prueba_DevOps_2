@@ -124,6 +124,18 @@ jobs:
           TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
         run: terraform init -input=false
 
+      - name: Import existing resources into Terraform state
+        working-directory: infra
+        env:
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+        run: |
+          # El comando '|| true' asegura que el pipeline no falle si el recurso no existe para ser importado
+          terraform import aws_cloudwatch_log_group.ecs_logs /ecs/${TF_VAR_project_name} || true
+          terraform import aws_ecr_repository.frontend ${TF_VAR_project_name}-frontend || true
+          terraform import aws_ecr_repository.ventas_back ${TF_VAR_project_name}-ventas-back || true
+          terraform import aws_ecr_repository.despachos_back ${TF_VAR_project_name}-despachos-back || true
+        continue-on-error: true # Es una capa extra de seguridad para que el pipeline no se detenga aquí
+
       - name: Terraform Plan & Apply
         env:
           TF_VAR_aws_region: ${{ env.AWS_REGION }}
