@@ -11,13 +11,22 @@ on:
 
 # Define los "trabajos" (jobs) que se ejecutarán
 jobs:
-  # Primer trabajo: construir y probar el servicio de ventas
-  build-test-ventas:
-    # El trabajo se ejecutará en una máquina virtual con la última versión de Ubuntu
+  build-and-test:
     runs-on: ubuntu-latest
+    # Define una matriz para ejecutar los mismos pasos para diferentes servicios
+    strategy:
+      matrix:
+        service:
+          - name: ventas
+            path: back-Ventas_SpringBoot/Springboot-API-REST
+          - name: despachos
+            path: back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+
     env:
       MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
       MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+
+    # Define servicios que se ejecutarán junto al job (una base de datos en este caso)
     services:
       mysql:
         image: mysql:8
@@ -25,78 +34,33 @@ jobs:
           MYSQL_ROOT_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
           MYSQL_DATABASE: ${{ env.MYSQL_DATABASE }}
         ports:
-          - 3306:3306
+          - 3306:3306 # Mapea el puerto del contenedor al host del runner
         options: >-
           --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Set up JDK 21 for ${{ matrix.service.name }}
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
+          cache: 'maven' # Habilita la caché para las dependencias de Maven
 
-      - name: Esperar a que MySQL esté listo
+      - name: Wait for MySQL to be ready
         run: |
-          for i in {1..30}; do
-            if mysqladmin ping -h127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" --silent; then
-              echo "MySQL is up!"; break;
-            fi
-            echo "Waiting for MySQL..."; sleep 2;
+          # Espera hasta que MySQL responda antes de continuar
+          until mysqladmin ping -h127.0.0.1 -uroot -p"${{ env.MYSQL_ROOT_PASSWORD }}" --silent; do
+            echo "Waiting for MySQL..."
+            sleep 2
           done
-        env:
-          MYSQL_ROOT_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
+          echo "MySQL is up!"
 
-      - name: Run tests for Ventas service
+      - name: Run tests for ${{ matrix.service.name }} service
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/${{ env.MYSQL_DATABASE }}
           SPRING_DATASOURCE_USERNAME: root
           SPRING_DATASOURCE_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
-        run: mvn -f back-Ventas_SpringBoot/Springboot-API-REST/pom.xml test
-
-  # Segundo trabajo: construir y probar el servicio de despachos (se ejecuta en paralelo al de ventas)
-  build-test-despachos:
-    runs-on: ubuntu-latest
-    env:
-      MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-      MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
-    services:
-      mysql:
-        image: mysql:8
-        env:
-          MYSQL_ROOT_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
-          MYSQL_DATABASE: ${{ env.MYSQL_DATABASE }}
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=5
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Esperar a que MySQL esté listo
-        run: |
-          for i in {1..30}; do
-            if mysqladmin ping -h127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" --silent; then
-              echo "MySQL is up!"; break;
-            fi
-            echo "Waiting for MySQL..."; sleep 2;
-          done
-        env:
-          MYSQL_ROOT_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
-
-      - name: Run tests for Despachos service
-        env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/${{ env.MYSQL_DATABASE }}
-          SPRING_DATASOURCE_USERNAME: root
-          SPRING_DATASOURCE_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
-        run: mvn -f back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO/pom.xml test
-
+        run: mvn -B -f ${{ matrix.service.path }}/pom.xml verify
