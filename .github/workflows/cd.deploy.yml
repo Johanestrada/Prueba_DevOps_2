@@ -118,15 +118,15 @@ jobs:
 
       - name: Terraform Init
         working-directory: infra
-        run: terraform init
+        run: terraform init -input=false
 
       - name: Terraform Plan
         working-directory: infra
-        run: terraform plan -out=tfplan
+        run: terraform plan -input=false -out=tfplan
 
       - name: Terraform Apply
         working-directory: infra
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve -lock-timeout=300s tfplan
 
       # ========================================
       # 8. FORCE ECS DEPLOYMENT
