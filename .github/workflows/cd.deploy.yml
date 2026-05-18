@@ -7,7 +7,6 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REGISTRY: 348374603543.dkr.ecr.us-east-1.amazonaws.com
   PROJECT_NAME: prueba_devops_2
 
 jobs:
@@ -15,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-      contents: read
+      contents: write # Necesario para github-script
 
     steps:
       - name: Checkout code
@@ -39,29 +38,46 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       # ========================================
-      # 3. BUILD BACKEND VENTAS
+      # 3. CREAR REPOSITORIOS ECR
+      # ========================================
+      - name: Create ECR repositories if they don't exist
+        env:
+          ECR_REPOSITORIES: >-
+            ${{ env.PROJECT_NAME }}-ventas-back
+            ${{ env.PROJECT_NAME }}-despachos-back
+            ${{ env.PROJECT_GPROJECT_NAME }}-frontend
+        run: |
+          for repo in $ECR_REPOSITORIES; do
+            aws ecr describe-repositories --repository-names "$repo" >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name "$repo"
+          done
+
+      # ========================================
+      # 4. BUILD BACKEND VENTAS
       # ========================================
       - name: Build and push Ventas Backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         working-directory: back-Ventas_SpringBoot/Springboot-API-REST
         run: |
-          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-ventas-back:latest \
-            -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-ventas-back:${{ github.sha }} .
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-ventas-back:latest
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-ventas-back:${{ github.sha }}
+          docker build -t $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:latest .
+          docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:${{ github.sha }}
+          docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back
 
       # ========================================
-      # 4. BUILD BACKEND DESPACHOS
+      # 5. BUILD BACKEND DESPACHOS
       # ========================================
       - name: Build and push Despachos Backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         working-directory: back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
         run: |
-          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-despachos-back:latest \
-            -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-despachos-back:${{ github.sha }} .
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-despachos-back:latest
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-despachos-back:${{ github.sha }}
+          docker build -t $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:latest .
+          docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:${{ github.sha }}
+          docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back
 
       # ========================================
-      # 5. BUILD FRONTEND
+      # 6. BUILD FRONTEND
       # ========================================
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -77,15 +93,16 @@ jobs:
         run: npm run build
 
       - name: Build and push Frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         working-directory: front_despacho
         run: |
-          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-frontend:latest \
-            -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-frontend:${{ github.sha }} .
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-frontend:latest
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-frontend:${{ github.sha }}
+          docker build -t $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:latest .
+          docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:${{ github.sha }}
+          docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend
 
       # ========================================
-      # 6. TERRAFORM APPLY
+      # 7. TERRAFORM APPLY
       # ========================================
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -107,7 +124,7 @@ jobs:
         run: terraform apply -auto-approve tfplan
 
       # ========================================
-      # 7. FORCE ECS DEPLOYMENT
+      # 8. FORCE ECS DEPLOYMENT
       # ========================================
       - name: Update ECS Service - Ventas
         run: |
@@ -134,7 +151,7 @@ jobs:
             --region ${{ env.AWS_REGION }}
 
       # ========================================
-      # 8. OBTENER Y MOSTRAR IPs PÚBLICAS
+      # 9. OBTENER Y MOSTRAR IPs PÚBLICAS
       # ========================================
       - name: Get Public IPs and DNS
         id: get-ips
@@ -156,7 +173,7 @@ jobs:
           echo "mysql_ip=$MYSQL_IP" >> $GITHUB_OUTPUT
 
       # ========================================
-      # 9. COMENTAR EN EL PULL REQUEST / COMMIT
+      # 10. COMENTAR EN EL PULL REQUEST / COMMIT
       # ========================================
       - name: Comment Deployment Status
         uses: actions/github-script@v7
@@ -185,7 +202,7 @@ jobs:
             })
 
       # ========================================
-      # 10. RESUMEN DE SALIDA
+      # 11. RESUMEN DE SALIDA
       # ========================================
       - name: Display Deployment Summary
         run: |
@@ -199,7 +216,7 @@ jobs:
           echo "=========================================="
 
       # ========================================
-      # 11. NOTIFICACIÓN EN CASO DE FALLO
+      # 12. NOTIFICACIÓN EN CASO DE FALLO
       # ========================================
       - name: Notify on Failure
         if: failure()
