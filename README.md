@@ -24,6 +24,7 @@ Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, fron
 - **MySQL 8** en EC2 pública
 - Acceso restringido desde ECS
 
+
 ### Infraestructura (Terraform)
 - VPC
 - Subnets públicas y privadas
@@ -32,6 +33,14 @@ Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, fron
 - NAT Gateway
 - VPC Endpoints
 - Security Groups
+
+---
+
+## Arquitectura del Proyecto
+
+A continuación se muestra el diagrama de la arquitectura desplegada en AWS, incluyendo el flujo desde los repositorios, la construcción y almacenamiento de imágenes en ECR, y el despliegue en ECS/EC2:
+
+![Diagrama Arquitectura AWS](infra/AWS_Diagrama.png)
 
 ---
 
@@ -223,47 +232,6 @@ aws ecs update-service --cluster $cluster \
 aws ecs update-service --cluster $cluster \
   --service frontend-service \
   --force-new-deployment --region us-east-1
-```
-
----
-
-# Logs CloudWatch
-
-```bash
-aws logs tail /ecs/prueba_devops_2 --since 1h --follow
-```
-
----
-
-# Monitoreo
-
-## CloudWatch
-- Log Group: `/ecs/prueba_devops_2`
-- Métricas CPU
-- Métricas memoria
-- Métricas red
-
-## ECS
-- Cluster ECS
-- Servicios ECS
-- Tasks ECS
-
----
-
-# Troubleshooting
-
-## ECS no inicia tareas
-
-```bash
-aws ecs describe-services --cluster <arn> --services <service-name>
-```
-
-```bash
-aws logs tail /ecs/prueba_devops_2 --follow
-```
-
-```bash
-aws ecr describe-images --repository-name <name>
 ```
 
 ---
