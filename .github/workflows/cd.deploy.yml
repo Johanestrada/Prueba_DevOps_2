@@ -1,0 +1,271 @@
+name: CD - Deploy to AWS ECS
+
+on:
+  push:
+    branches: [ "main", "develop", "feature/ci-cd" ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  PROJECT_NAME: prueba_devops_2
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write # Necesario para github-script
+      issues: write # Necesario para comentar en PRs
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ========================================
+      # 1. AUTENTICACIÓN AWS
+      # ========================================
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ========================================
+      # 2. LOGIN A ECR
+      # ========================================
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Debug AWS identity
+        run: |
+          echo "Caller identity:";
+          aws sts get-caller-identity --output table
+
+      - name: Ensure Key Pair exists (optional import)
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          set -e
+          KEY_NAME="${{ secrets.KEY_PAIR_NAME }}"
+          if [ -z "$KEY_NAME" ]; then
+            echo "::warning::Secret KEY_PAIR_NAME is empty. Skipping key-pair check."
+            exit 0
+          fi
+
+          if aws ec2 describe-key-pairs --key-names "$KEY_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "Key pair $KEY_NAME already exists in $AWS_REGION."
+          else
+            echo "Key pair $KEY_NAME not found in $AWS_REGION."
+            if [ -n "${{ secrets.KEY_PAIR_PUBLIC }}" ]; then
+              echo "Importing public key from secret KEY_PAIR_PUBLIC..."
+              echo "${{ secrets.KEY_PAIR_PUBLIC }}" > /tmp/key.pub
+              aws ec2 import-key-pair --key-name "$KEY_NAME" --public-key-material fileb:///tmp/key.pub --region "$AWS_REGION"
+              echo "Imported key pair $KEY_NAME."
+            else
+              echo "::warning::No public key provided (secret KEY_PAIR_PUBLIC). Terraform apply may fail due to missing key pair.";
+            fi
+          fi
+
+      # ========================================
+      # 3. TERRAFORM APPLY
+      # ========================================
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format Check
+        working-directory: infra
+        run: |
+          if ! terraform fmt -check; then
+            echo "::error::Algunos archivos de Terraform no están formateados. Ejecuta 'terraform fmt' en el directorio 'infra' y sube los cambios."
+            exit 1
+          fi
+
+      - name: Terraform Init
+        working-directory: infra
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
+        run: terraform init -input=false
+
+      - name: Import existing resources (Best-effort)
+        working-directory: infra
+        env:
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_aws_region: ${{ env.AWS_REGION }} # <-- AÑADIR
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }} # <-- AÑADIR
+        run: |
+          # Este paso intenta adoptar recursos existentes para evitar errores de "AlreadyExists".
+          # '|| true' y 'continue-on-error' aseguran que el pipeline no falle si no hay nada que importar.
+          terraform import aws_cloudwatch_log_group.ecs_logs /ecs/${TF_VAR_project_name} || true
+          terraform import aws_ecr_repository.frontend ${TF_VAR_project_name}-frontend || true
+          terraform import aws_ecr_repository.ventas_back ${TF_VAR_project_name}-ventas-back || true
+          terraform import aws_ecr_repository.despachos_back ${TF_VAR_project_name}-despachos-back || true
+          # Importar servicios ECS si ya existen (formato: <cluster-name>/<service-name>)
+          terraform import aws_ecs_service.frontend ${TF_VAR_project_name}-ecs-cluster/frontend-service || true
+          terraform import aws_ecs_service.ventas_back ${TF_VAR_project_name}-ecs-cluster/ventas-back-service || true
+          terraform import aws_ecs_service.despachos_back ${TF_VAR_project_name}-ecs-cluster/despachos-back-service || true
+        continue-on-error: true
+
+      - name: Terraform Plan & Apply
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
+        working-directory: infra
+        run: |
+          terraform plan -input=false -out=tfplan
+          terraform apply -auto-approve -lock-timeout=300s tfplan
+
+      # ========================================
+      # 4. BUILD BACKEND VENTAS
+      # ========================================
+      - name: Build and push Ventas Backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        working-directory: back-Ventas_SpringBoot/Springboot-API-REST
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:latest .
+          docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:${{ github.sha }}
+          docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back
+
+      # ========================================
+      # 5. BUILD BACKEND DESPACHOS
+      # ========================================
+      - name: Build and push Despachos Backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        working-directory: back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:latest .
+          docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:${{ github.sha }}
+          docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back
+
+      # ========================================
+      # 6. BUILD FRONTEND
+      # ========================================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (Frontend)
+        working-directory: front_despacho
+        run: npm ci
+
+      - name: Build Frontend
+        working-directory: front_despacho
+        run: npm run build
+
+      - name: Build and push Frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        working-directory: front_despacho
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:latest .
+          docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:${{ github.sha }}
+          docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend
+
+      # ========================================
+      # 8. FORCE ECS DEPLOYMENT
+      # ========================================
+      - name: Update ECS Service - Ventas
+        run: |
+          aws ecs update-service \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --service ventas-back-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update ECS Service - Despachos
+        run: |
+          aws ecs update-service \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --service despachos-back-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update ECS Service - Frontend
+        run: |
+          aws ecs update-service \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --service frontend-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      # ========================================
+      # 9. OBTENER Y MOSTRAR IPs PÚBLICAS
+      # ========================================
+      - name: Get Public IPs and DNS
+        id: get-ips
+        run: |
+          # Frontend ALB
+          FRONTEND_DNS=$(aws elbv2 describe-load-balancers \
+            --region ${{ env.AWS_REGION }} \
+            --query "LoadBalancers[?contains(LoadBalancerName, '${{ env.PROJECT_NAME }}-frontend')].DNSName" \
+            --output text)
+          
+          # MySQL EC2 Public IP
+          MYSQL_IP=$(aws ec2 describe-instances \
+            --region ${{ env.AWS_REGION }} \
+            --filters "Name=tag:Name,Values=${{ env.PROJECT_NAME }}-mysql" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --output text)
+          
+          echo "frontend_dns=$FRONTEND_DNS" >> $GITHUB_OUTPUT
+          echo "mysql_ip=$MYSQL_IP" >> $GITHUB_OUTPUT
+
+      # ========================================
+      # 10. COMENTAR EN EL PULL REQUEST / COMMIT
+      # ========================================
+      - name: Comment Deployment Status
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' # Solo comentar en PRs
+        with:
+          script: |
+            const shortSha = "${{ github.sha }}".substring(0, 7);
+            const runLink = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const output = `##  Deploy Completado
+
+            ### Acceso a Servicios:
+            - **Frontend**: http://${{ steps.get-ips.outputs.frontend_dns }}
+            - **MySQL**: ${{ steps.get-ips.outputs.mysql_ip }}:3306
+
+            ### Detalle del Despliegue:
+            - **Commit**: \`${shortSha}\`
+            - **Branch**: \`${{ github.ref }}\`
+            - **Workflow Run**: Ver ejecución
+            `;
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      # ========================================
+      # 11. RESUMEN DE SALIDA
+      # ========================================
+      - name: Display Deployment Summary
+        run: |
+          echo "=========================================="
+          echo " Deployment Completado"
+          echo "=========================================="
+          echo "Frontend: http://${{ steps.get-ips.outputs.frontend_dns }}"
+          echo "MySQL: ${{ steps.get-ips.outputs.mysql_ip }}:3306"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Project: ${{ env.PROJECT_NAME }}"
+          echo "=========================================="
+
+      # ========================================
+      # 12. NOTIFICACIÓN EN CASO DE FALLO
+      # ========================================
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo " Deploy falló. Revisa los logs en GitHub Actions."
+          exit 1
