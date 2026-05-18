@@ -160,31 +160,29 @@ jobs:
       # ========================================
       - name: Comment Deployment Status
         uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' # Solo comentar en PRs
         with:
           script: |
-            const frontendDns = '${{ steps.get-ips.outputs.frontend_dns }}';
-            const mysqlIp = '${{ steps.get-ips.outputs.mysql_ip }}';
-            const comment = `## 🚀 Deploy Completado
+            const output = `## 🚀 Deploy Completado
 
-### Acceso a Servicios:
-- **Frontend**: http://${frontendDns}
-- **Ventas API Docs**: http://${frontendDns}:8080/swagger-ui
-- **Despachos API Docs**: http://${frontendDns}:8080/swagger-ui
-- **MySQL**: ${mysqlIp}:3306
+            ### Acceso a Servicios:
+            - **Frontend**: http://${{ steps.get-ips.outputs.frontend_dns }}
+            - **Ventas API Docs**: http://${{ steps.get-ips.outputs.frontend_dns }}:8080/swagger-ui
+            - **Despachos API Docs**: http://${{ steps.get-ips.outputs.frontend_dns }}:8080/swagger-ui
+            - **MySQL**: ${{ steps.get-ips.outputs.mysql_ip }}:3306
 
-### Git Commit: ${{ github.sha }}
-### Branch: ${{ github.ref }}
+            ### Detalle del Despliegue:
+            - **Commit**: \`${{ github.sha.substring(0, 7) }}\`
+            - **Branch**: \`${{ github.ref }}\`
+            - **Workflow Run**: Link
             `;
-            
-            github.rest.issues.createComment({
+
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: comment
-            }).catch(() => {
-              // Si no hay PR, solo mostrar en logs
-              console.log(comment);
-            });
+              body: output
+            })
 
       # ========================================
       # 10. RESUMEN DE SALIDA
