@@ -1,0 +1,210 @@
+name: CD - Deploy to AWS ECS
+
+on:
+  push:
+    branches: [ "main", "feature/ci-cd" ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 348374603543.dkr.ecr.us-east-1.amazonaws.com
+  PROJECT_NAME: prueba_devops_2
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ========================================
+      # 1. AUTENTICACIÓN AWS
+      # ========================================
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ========================================
+      # 2. LOGIN A ECR
+      # ========================================
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ========================================
+      # 3. BUILD BACKEND VENTAS
+      # ========================================
+      - name: Build and push Ventas Backend image
+        working-directory: back-Ventas_SpringBoot/Springboot-API-REST
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-ventas-back:latest \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-ventas-back:${{ github.sha }} .
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-ventas-back:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-ventas-back:${{ github.sha }}
+
+      # ========================================
+      # 4. BUILD BACKEND DESPACHOS
+      # ========================================
+      - name: Build and push Despachos Backend image
+        working-directory: back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-despachos-back:latest \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-despachos-back:${{ github.sha }} .
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-despachos-back:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-despachos-back:${{ github.sha }}
+
+      # ========================================
+      # 5. BUILD FRONTEND
+      # ========================================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (Frontend)
+        working-directory: front_despacho
+        run: npm ci
+
+      - name: Build Frontend
+        working-directory: front_despacho
+        run: npm run build
+
+      - name: Build and push Frontend image
+        working-directory: front_despacho
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-frontend:latest \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-frontend:${{ github.sha }} .
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-frontend:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.PROJECT_NAME }}-frontend:${{ github.sha }}
+
+      # ========================================
+      # 6. TERRAFORM APPLY
+      # ========================================
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format Check
+        working-directory: infra
+        run: terraform fmt -check
+
+      - name: Terraform Init
+        working-directory: infra
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: infra
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: infra
+        run: terraform apply -auto-approve tfplan
+
+      # ========================================
+      # 7. FORCE ECS DEPLOYMENT
+      # ========================================
+      - name: Update ECS Service - Ventas
+        run: |
+          aws ecs update-service \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --service ventas-back-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update ECS Service - Despachos
+        run: |
+          aws ecs update-service \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --service despachos-back-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update ECS Service - Frontend
+        run: |
+          aws ecs update-service \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --service frontend-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      # ========================================
+      # 8. OBTENER Y MOSTRAR IPs PÚBLICAS
+      # ========================================
+      - name: Get Public IPs and DNS
+        id: get-ips
+        run: |
+          # Frontend ALB
+          FRONTEND_DNS=$(aws elbv2 describe-load-balancers \
+            --region ${{ env.AWS_REGION }} \
+            --query "LoadBalancers[?contains(LoadBalancerName, '${{ env.PROJECT_NAME }}-frontend')].DNSName" \
+            --output text)
+          
+          # MySQL EC2 Public IP
+          MYSQL_IP=$(aws ec2 describe-instances \
+            --region ${{ env.AWS_REGION }} \
+            --filters "Name=tag:Name,Values=${{ env.PROJECT_NAME }}-mysql" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --output text)
+          
+          echo "frontend_dns=$FRONTEND_DNS" >> $GITHUB_OUTPUT
+          echo "mysql_ip=$MYSQL_IP" >> $GITHUB_OUTPUT
+
+      # ========================================
+      # 9. COMENTAR EN EL PULL REQUEST / COMMIT
+      # ========================================
+      - name: Comment Deployment Status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const frontendDns = '${{ steps.get-ips.outputs.frontend_dns }}';
+            const mysqlIp = '${{ steps.get-ips.outputs.mysql_ip }}';
+            const comment = `## 🚀 Deploy Completado
+
+### Acceso a Servicios:
+- **Frontend**: http://${frontendDns}
+- **Ventas API Docs**: http://${frontendDns}:8080/swagger-ui
+- **Despachos API Docs**: http://${frontendDns}:8080/swagger-ui
+- **MySQL**: ${mysqlIp}:3306
+
+### Git Commit: ${{ github.sha }}
+### Branch: ${{ github.ref }}
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            }).catch(() => {
+              // Si no hay PR, solo mostrar en logs
+              console.log(comment);
+            });
+
+      # ========================================
+      # 10. RESUMEN DE SALIDA
+      # ========================================
+      - name: Display Deployment Summary
+        run: |
+          echo "=========================================="
+          echo "✅ Deployment Completado"
+          echo "=========================================="
+          echo "Frontend: http://${{ steps.get-ips.outputs.frontend_dns }}"
+          echo "MySQL: ${{ steps.get-ips.outputs.mysql_ip }}:3306"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Project: ${{ env.PROJECT_NAME }}"
+          echo "=========================================="
+
+      # ========================================
+      # 11. NOTIFICACIÓN EN CASO DE FALLO
+      # ========================================
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "❌ Deploy falló. Revisa los logs en GitHub Actions."
+          exit 1
