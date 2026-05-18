@@ -45,7 +45,7 @@ jobs:
           ECR_REPOSITORIES: >-
             ${{ env.PROJECT_NAME }}-ventas-back
             ${{ env.PROJECT_NAME }}-despachos-back
-            ${{ env.PROJECT_GPROJECT_NAME }}-frontend
+            ${{ env.PROJECT_NAME }}-frontend
         run: |
           for repo in $ECR_REPOSITORIES; do
             aws ecr describe-repositories --repository-names "$repo" >/dev/null 2>&1 || \
