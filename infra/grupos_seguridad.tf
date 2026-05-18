@@ -8,11 +8,11 @@ resource "aws_security_group" "backend_sg" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "API desde frontend"
-    from_port       = 8080
-    to_port         = 8080
-    protocol        = "tcp"
-    cidr_blocks     = [aws_subnet.public_subnet.cidr_block] # Permitir tráfico desde la subnet pública donde vive el frontend
+  description     = "Frontend a backend"
+  from_port       = 8080
+  to_port         = 8080
+  protocol        = "tcp"
+  security_groups = [aws_security_group.frontend_sg.id]
   }
 
   ingress {
@@ -82,12 +82,21 @@ resource "aws_security_group" "mysql_sg" {
   description = "Security Group MySQL"
   vpc_id      = aws_vpc.main.id
 
+
   ingress {
-    description     = "MySQL desde backend"
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.backend_sg.id]
+    description = "MySQL desde VPC"
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  ingress {
+    description = "SSH acceso admin"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {

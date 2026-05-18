@@ -19,3 +19,9 @@ dist/
 *.log
 
 .env
+
+terraform.tfstate
+*.tfstate
+*.tfstate.backup
+.terraform/
+CACHED

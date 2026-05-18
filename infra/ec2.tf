@@ -20,7 +20,7 @@ resource "aws_instance" "mysql" {
   ami           = data.aws_ami.amazon_linux.id
   instance_type = "t2.micro"
 
-  subnet_id = aws_subnet.private_subnet.id
+  subnet_id = aws_subnet.public_subnet.id
 
   key_name = var.key_pair_name
 
@@ -28,16 +28,30 @@ resource "aws_instance" "mysql" {
     aws_security_group.mysql_sg.id
   ]
 
-  associate_public_ip_address = false
+  associate_public_ip_address = true
+
+  root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
+  }
 
   user_data = <<-EOF
     #!/bin/bash
-
     yum update -y
-    yum install -y docker git
+
+    yum install -y docker
 
     systemctl start docker
     systemctl enable docker
+
+    sleep 10
+
+    docker run -d \
+      --name mysql \
+      -e MYSQL_ROOT_PASSWORD=123456 \
+      -e MYSQL_DATABASE=ecommerce \
+      -p 3306:3306 \
+      mysql:8
   EOF
 
   tags = {
