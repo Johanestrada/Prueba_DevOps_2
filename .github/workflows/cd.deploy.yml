@@ -2,7 +2,7 @@ name: CD - Deploy to AWS ECS
 
 on:
   push:
-    branches: [ "main", "feature/ci-cd" ]
+    branches: [ "main", "develop", "feature/ci-cd" ]
   workflow_dispatch:
 
 env:
@@ -228,7 +228,7 @@ jobs:
           script: |
             const shortSha = "${{ github.sha }}".substring(0, 7);
             const runLink = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
-            const output = `## 🚀 Deploy Completado
+            const output = `##  Deploy Completado
 
             ### Acceso a Servicios:
             - **Frontend**: http://${{ steps.get-ips.outputs.frontend_dns }}
@@ -253,7 +253,7 @@ jobs:
       - name: Display Deployment Summary
         run: |
           echo "=========================================="
-          echo "✅ Deployment Completado"
+          echo " Deployment Completado"
           echo "=========================================="
           echo "Frontend: http://${{ steps.get-ips.outputs.frontend_dns }}"
           echo "MySQL: ${{ steps.get-ips.outputs.mysql_ip }}:3306"
@@ -267,5 +267,5 @@ jobs:
       - name: Notify on Failure
         if: failure()
         run: |
-          echo "❌ Deploy falló. Revisa los logs en GitHub Actions."
+          echo " Deploy falló. Revisa los logs en GitHub Actions."
           exit 1
