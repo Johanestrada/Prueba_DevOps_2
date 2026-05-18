@@ -39,19 +39,49 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       # ========================================
-      # 3. CREAR REPOSITORIOS ECR
+      # 3. TERRAFORM APPLY
       # ========================================
-      - name: Create ECR repositories if they don't exist
-        env:
-          ECR_REPOSITORIES: >-
-            ${{ env.PROJECT_NAME }}-ventas-back
-            ${{ env.PROJECT_NAME }}-despachos-back
-            ${{ env.PROJECT_NAME }}-frontend
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format Check
+        working-directory: infra
         run: |
-          for repo in $ECR_REPOSITORIES; do
-            aws ecr describe-repositories --repository-names "$repo" >/dev/null 2>&1 || \
-            aws ecr create-repository --repository-name "$repo"
-          done
+          if ! terraform fmt -check; then
+            echo "::error::Algunos archivos de Terraform no están formateados. Ejecuta 'terraform fmt' en el directorio 'infra' y sube los cambios."
+            exit 1
+          fi
+
+      - name: Terraform Init
+        working-directory: infra
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
+        run: terraform init -input=false
+
+      - name: Import existing resources (Best-effort)
+        working-directory: infra
+        env:
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+        run: |
+          # Este paso intenta adoptar recursos existentes para evitar errores de "AlreadyExists".
+          # '|| true' y 'continue-on-error' aseguran que el pipeline no falle si no hay nada que importar.
+          terraform import aws_cloudwatch_log_group.ecs_logs /ecs/${TF_VAR_project_name} || true
+          terraform import aws_ecr_repository.frontend ${TF_VAR_project_name}-frontend || true
+          terraform import aws_ecr_repository.ventas_back ${TF_VAR_project_name}-ventas-back || true
+          terraform import aws_ecr_repository.despachos_back ${TF_VAR_project_name}-despachos-back || true
+        continue-on-error: true
+
+      - name: Terraform Plan & Apply
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
+        working-directory: infra
+        run: |
+          terraform plan -input=false -out=tfplan
+          terraform apply -auto-approve -lock-timeout=300s tfplan
 
       # ========================================
       # 4. BUILD BACKEND VENTAS
@@ -101,50 +131,6 @@ jobs:
           docker build -t $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:latest .
           docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:${{ github.sha }}
           docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend
-
-      # ========================================
-      # 7. TERRAFORM APPLY
-      # ========================================
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Format Check
-        working-directory: infra
-        run: |
-          if ! terraform fmt -check; then
-            echo "::error::Algunos archivos de Terraform no están formateados. Ejecuta 'terraform fmt' en el directorio 'infra' y sube los cambios."
-            exit 1
-          fi
-
-      - name: Terraform Init
-        working-directory: infra
-        env:
-          TF_VAR_aws_region: ${{ env.AWS_REGION }}
-          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
-          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
-        run: terraform init -input=false
-
-      - name: Import existing resources into Terraform state
-        working-directory: infra
-        env:
-          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
-        run: |
-          # El comando '|| true' asegura que el pipeline no falle si el recurso no existe para ser importado
-          terraform import aws_cloudwatch_log_group.ecs_logs /ecs/${TF_VAR_project_name} || true
-          terraform import aws_ecr_repository.frontend ${TF_VAR_project_name}-frontend || true
-          terraform import aws_ecr_repository.ventas_back ${TF_VAR_project_name}-ventas-back || true
-          terraform import aws_ecr_repository.despachos_back ${TF_VAR_project_name}-despachos-back || true
-        continue-on-error: true # Es una capa extra de seguridad para que el pipeline no se detenga aquí
-
-      - name: Terraform Plan & Apply
-        env:
-          TF_VAR_aws_region: ${{ env.AWS_REGION }}
-          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
-          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
-        working-directory: infra
-        run: |
-          terraform plan -input=false -out=tfplan
-          terraform apply -auto-approve -lock-timeout=300s tfplan
 
       # ========================================
       # 8. FORCE ECS DEPLOYMENT
