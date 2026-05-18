@@ -44,7 +44,7 @@ resource "aws_ecs_task_definition" "frontend" {
       environment = [
         {
           name  = "VENTAS_BACK_HOST"
-          value = "10.0.2.222"
+          value = "10.0.2.147:8080"
         }
       ],
 
@@ -100,9 +100,18 @@ resource "aws_ecs_task_definition" "ventas_back" {
       ],
 
       environment = [
-        { name = "SPRING_DATASOURCE_URL", value = "jdbc:mysql://10.0.1.39:3306/ecommerce" },
-        { name = "SPRING_DATASOURCE_USERNAME", value = "root" },
-        { name = "SPRING_DATASOURCE_PASSWORD", value = "123456" }
+        {
+          name  = "SPRING_DATASOURCE_URL",
+          value = "jdbc:mysql://${aws_instance.mysql.private_ip}:3306/ecommerce"
+        },
+        {
+          name  = "SPRING_DATASOURCE_USERNAME",
+          value = "root"
+        },
+        {
+          name  = "SPRING_DATASOURCE_PASSWORD",
+          value = "123456"
+        }
       ],
 
       logConfiguration = {
@@ -158,9 +167,18 @@ resource "aws_ecs_task_definition" "despachos_back" {
       ],
 
       environment = [
-        { name = "SPRING_DATASOURCE_URL", value = "jdbc:mysql://10.0.1.39:3306/ecommerce" },
-        { name = "SPRING_DATASOURCE_USERNAME", value = "root" },
-        { name = "SPRING_DATASOURCE_PASSWORD", value = "123456" }
+        {
+  name  = "SPRING_DATASOURCE_URL",
+          value = "jdbc:mysql://${aws_instance.mysql.private_ip}:3306/ecommerce"
+        },
+        {
+          name  = "SPRING_DATASOURCE_USERNAME",
+          value = "root"
+        },
+        {
+          name  = "SPRING_DATASOURCE_PASSWORD",
+          value = "123456"
+        }
       ],
 
       logConfiguration = {
