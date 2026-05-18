@@ -15,6 +15,7 @@ jobs:
     permissions:
       id-token: write
       contents: write # Necesario para github-script
+      issues: write # Necesario para comentar en PRs
 
     steps:
       - name: Checkout code
@@ -64,6 +65,8 @@ jobs:
         working-directory: infra
         env:
           TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_aws_region: ${{ env.AWS_REGION }} # <-- AÑADIR
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }} # <-- AÑADIR
         run: |
           # Este paso intenta adoptar recursos existentes para evitar errores de "AlreadyExists".
           # '|| true' y 'continue-on-error' aseguran que el pipeline no falle si no hay nada que importar.
