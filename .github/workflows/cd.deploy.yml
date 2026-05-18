@@ -118,15 +118,21 @@ jobs:
 
       - name: Terraform Init
         working-directory: infra
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
         run: terraform init -input=false
 
-      - name: Terraform Plan
+      - name: Terraform Plan & Apply
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
         working-directory: infra
-        run: terraform plan -input=false -out=tfplan
-
-      - name: Terraform Apply
-        working-directory: infra
-        run: terraform apply -auto-approve -lock-timeout=300s tfplan
+        run: |
+          terraform plan -input=false -out=tfplan
+          terraform apply -auto-approve -lock-timeout=300s tfplan
 
       # ========================================
       # 8. FORCE ECS DEPLOYMENT
