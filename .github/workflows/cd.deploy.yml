@@ -66,24 +66,6 @@ jobs:
           TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
         run: terraform init -input=false
 
-      - name: Import existing resources (Best-effort)
-        working-directory: infra
-        env:
-          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
-          TF_VAR_aws_region: ${{ env.AWS_REGION }} # <-- AÑADIR
-          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }} # <-- AÑADIR
-        run: |
-          # Este paso intenta adoptar recursos existentes para evitar errores de "AlreadyExists".
-          # '|| true' y 'continue-on-error' aseguran que el pipeline no falle si no hay nada que importar.
-          terraform import aws_cloudwatch_log_group.ecs_logs /ecs/${TF_VAR_project_name} || true
-          terraform import aws_ecr_repository.frontend ${TF_VAR_project_name}-frontend || true
-          terraform import aws_ecr_repository.ventas_back ${TF_VAR_project_name}-ventas-back || true
-          terraform import aws_ecr_repository.despachos_back ${TF_VAR_project_name}-despachos-back || true
-          # Importar servicios ECS si ya existen (formato: <cluster-name>/<service-name>)
-          terraform import aws_ecs_service.frontend ${TF_VAR_project_name}-ecs-cluster/frontend-service || true
-          terraform import aws_ecs_service.ventas_back ${TF_VAR_project_name}-ecs-cluster/ventas-back-service || true
-          terraform import aws_ecs_service.despachos_back ${TF_VAR_project_name}-ecs-cluster/despachos-back-service || true
-        continue-on-error: true
 
       - name: Terraform Plan & Apply
         env:
@@ -92,8 +74,9 @@ jobs:
           TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
         working-directory: infra
         run: |
-          terraform plan -input=false -out=tfplan
-          terraform apply -auto-approve -lock-timeout=300s tfplan
+          terraform plan -out=tfplan
+          terraform apply -auto-approve tfplan
+
 
       # ========================================
       # 4. BUILD BACKEND VENTAS
