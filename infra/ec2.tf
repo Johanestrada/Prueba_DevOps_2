@@ -39,13 +39,16 @@ resource "aws_instance" "mysql" {
     #!/bin/bash
     yum update -y
 
+    # instalar docker
     yum install -y docker
 
     systemctl start docker
     systemctl enable docker
 
+    # esperar docker listo
     sleep 10
 
+    # correr mysql automáticamente
     docker run -d \
       --name mysql \
       -e MYSQL_ROOT_PASSWORD=123456 \
