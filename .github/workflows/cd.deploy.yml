@@ -108,7 +108,6 @@ jobs:
           terraform import aws_ecs_service.frontend ${TF_VAR_project_name}-ecs-cluster/frontend-service || true
           terraform import aws_ecs_service.ventas_back ${TF_VAR_project_name}-ecs-cluster/ventas-back-service || true
           terraform import aws_ecs_service.despachos_back ${TF_VAR_project_name}-ecs-cluster/despachos-back-service || true
-        continue-on-error: true
 
       - name: Terraform Plan & Apply
         env:
