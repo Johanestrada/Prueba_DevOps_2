@@ -16,6 +16,10 @@ AWS_SECRET_ACCESS_KEY
   └─ Tu AWS Secret Access Key
   └─ (Mostrado solo UNA VEZ al crear la key - guárdalo bien)
 
+AWS_SESSION_TOKEN
+  └─ Tu AWS Session Token (Requerido para credenciales temporales como AWS Academy)
+  └─ Obtenlo junto a las otras credenciales en tu laboratorio.
+
 AWS_ACCOUNT_ID
   └─ Tu Account ID de AWS
   └─ Ejemplo: 348374603543
@@ -53,6 +57,10 @@ Nombre: AWS_SECRET_ACCESS_KEY
 Valor: <tu-secret-key>
 [Add secret]
 
+Nombre: AWS_SESSION_TOKEN
+Valor: <tu-session-token>
+[Add secret]
+
 Nombre: AWS_ACCOUNT_ID
 Valor: <tu-account-id>
 [Add secret]
@@ -72,6 +80,7 @@ Valor: ecommerce
 # Reemplaza valores y ejecuta
 gh secret set AWS_ACCESS_KEY_ID --body "xxx"
 gh secret set AWS_SECRET_ACCESS_KEY --body "xxx"
+gh secret set AWS_SESSION_TOKEN --body "xxx"
 gh secret set AWS_ACCOUNT_ID --body "348374603543"
 gh secret set MYSQL_ROOT_PASSWORD --body "123456"
 gh secret set MYSQL_DATABASE --body "ecommerce"

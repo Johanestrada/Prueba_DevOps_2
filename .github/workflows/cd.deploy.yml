@@ -110,7 +110,11 @@ jobs:
 
       - name: Terraform Format Check
         working-directory: infra
-        run: terraform fmt -check
+        run: |
+          if ! terraform fmt -check; then
+            echo "::error::Algunos archivos de Terraform no están formateados. Ejecuta 'terraform fmt' en el directorio 'infra' y sube los cambios."
+            exit 1
+          fi
 
       - name: Terraform Init
         working-directory: infra
