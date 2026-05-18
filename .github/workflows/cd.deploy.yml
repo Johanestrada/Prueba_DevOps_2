@@ -39,6 +39,36 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Debug AWS identity
+        run: |
+          echo "Caller identity:";
+          aws sts get-caller-identity --output table
+
+      - name: Ensure Key Pair exists (optional import)
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          set -e
+          KEY_NAME="${{ secrets.KEY_PAIR_NAME }}"
+          if [ -z "$KEY_NAME" ]; then
+            echo "::warning::Secret KEY_PAIR_NAME is empty. Skipping key-pair check."
+            exit 0
+          fi
+
+          if aws ec2 describe-key-pairs --key-names "$KEY_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "Key pair $KEY_NAME already exists in $AWS_REGION."
+          else
+            echo "Key pair $KEY_NAME not found in $AWS_REGION."
+            if [ -n "${{ secrets.KEY_PAIR_PUBLIC }}" ]; then
+              echo "Importing public key from secret KEY_PAIR_PUBLIC..."
+              echo "${{ secrets.KEY_PAIR_PUBLIC }}" > /tmp/key.pub
+              aws ec2 import-key-pair --key-name "$KEY_NAME" --public-key-material fileb:///tmp/key.pub --region "$AWS_REGION"
+              echo "Imported key pair $KEY_NAME."
+            else
+              echo "::warning::No public key provided (secret KEY_PAIR_PUBLIC). Terraform apply may fail due to missing key pair.";
+            fi
+          fi
+
       # ========================================
       # 3. TERRAFORM APPLY
       # ========================================
@@ -74,6 +104,10 @@ jobs:
           terraform import aws_ecr_repository.frontend ${TF_VAR_project_name}-frontend || true
           terraform import aws_ecr_repository.ventas_back ${TF_VAR_project_name}-ventas-back || true
           terraform import aws_ecr_repository.despachos_back ${TF_VAR_project_name}-despachos-back || true
+          # Importar servicios ECS si ya existen (formato: <cluster-name>/<service-name>)
+          terraform import aws_ecs_service.frontend ${TF_VAR_project_name}-ecs-cluster/frontend-service || true
+          terraform import aws_ecs_service.ventas_back ${TF_VAR_project_name}-ecs-cluster/ventas-back-service || true
+          terraform import aws_ecs_service.despachos_back ${TF_VAR_project_name}-ecs-cluster/despachos-back-service || true
         continue-on-error: true
 
       - name: Terraform Plan & Apply
