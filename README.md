@@ -1,6 +1,6 @@
 Prueba DevOps 2 - E-Commerce Deployment
 
-Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, frontend React y orquestación con ECS, ECR y Terraform.
+Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, frontend React y orquestación con EKS (Kubernetes), ECR y Terraform.
 
 
 
@@ -28,11 +28,16 @@ Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, fron
 ### Infraestructura (Terraform)
 - VPC
 - Subnets públicas y privadas
-- ECS Cluster
+- EKS Cluster (Kubernetes)
 - ECR
 - NAT Gateway
 - VPC Endpoints
 - Security Groups
+
+### Orquestación (Kubernetes)
+- Deployments para Microservicios y Frontend
+- Services (ClusterIP/LoadBalancer)
+- ConfigMaps para variables de entorno
 
 ---
 
@@ -40,7 +45,7 @@ Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, fron
 
 A continuación se muestra el diagrama de la arquitectura desplegada en AWS, incluyendo el flujo desde los repositorios, la construcción y almacenamiento de imágenes en ECR, y el despliegue en ECS/EC2:
 
-![Diagrama Arquitectura AWS](infra/AWS_Diagrama.png)
+![Diagrama Arquitectura AWS EKS](infra/AWS_Diagrama.png)
 
 ---
 
@@ -81,7 +86,7 @@ Ingresar:
 ## 3. Desplegar Infraestructura
 
 ```bash
-cd infra
+cd infra/terraform
 
 terraform plan
 
@@ -141,7 +146,7 @@ MYSQL_DATABASE
 Archivo:
 
 ```text
-infra/terraform.tfvars
+infra/terraform/terraform.tfvars
 ```
 
 Contenido:
@@ -255,6 +260,7 @@ Prueba_DevOps_2/
 │       ├── ci.backend.yml
 │       └── cd.deploy.yml
 ├── infra/
+├── k8s/
 ├── back-Ventas_SpringBoot/
 ├── back-Despachos_SpringBoot/
 ├── front_despacho/
