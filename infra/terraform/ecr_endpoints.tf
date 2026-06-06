@@ -4,7 +4,7 @@ resource "aws_security_group" "ecr_endpoint_sg" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "Allow ECS tasks to connect to ECR endpoints"
+    description = "Allow EKS nodes to connect to ECR endpoints"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -65,16 +65,18 @@ resource "aws_vpc_endpoint" "sts" {
   }
 }
 
-resource "aws_vpc_endpoint" "cloudwatch_logs" {
-  vpc_id             = aws_vpc.main.id
-  service_name       = "com.amazonaws.${var.aws_region}.logs"
-  vpc_endpoint_type  = "Interface"
-  subnet_ids         = [aws_subnet.private_subnet.id]
-  security_group_ids = [aws_security_group.ecr_endpoint_sg.id]
-
-  private_dns_enabled = true
-
-  tags = {
-    Name = "${var.project_name}-cloudwatch-logs-endpoint"
-  }
-}
+### aws_vpc_endpoint "cloudwatch_logs" comentado: CloudWatch Logs VPC endpoint no necesario
+### para la arquitectura EKS actual; se puede restaurar si luego se requiere.
+# resource "aws_vpc_endpoint" "cloudwatch_logs" {
+#   vpc_id             = aws_vpc.main.id
+#   service_name       = "com.amazonaws.${var.aws_region}.logs"
+#   vpc_endpoint_type  = "Interface"
+#   subnet_ids         = [aws_subnet.private_subnet.id]
+#   security_group_ids = [aws_security_group.ecr_endpoint_sg.id]
+#
+#   private_dns_enabled = true
+#
+#   tags = {
+#     Name = "${var.project_name}-cloudwatch-logs-endpoint"
+#   }
+# }
