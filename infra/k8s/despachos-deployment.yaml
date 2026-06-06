@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: despachos
-        image: 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-despachos-back:latest
+        image: 387380359607.dkr.ecr.us-east-1.amazonaws.com/inventario-devops-despachos-back:latest
         ports:
         - containerPort: 8080
         env:

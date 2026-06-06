@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: ventas
-        image: 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-ventas-back:latest
+        image: 387380359607.dkr.ecr.us-east-1.amazonaws.com/inventario-devops-ventas-back:latest
         ports:
         - containerPort: 8080
         env:

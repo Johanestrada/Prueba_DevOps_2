@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: citt/front-despacho:latest
+        image: 387380359607.dkr.ecr.us-east-1.amazonaws.com/inventario-devops-frontend:latest
         ports:
         - containerPort: 80
         env:
