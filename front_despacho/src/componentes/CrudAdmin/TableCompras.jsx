@@ -1,18 +1,13 @@
 import { useState, useEffect } from "react";
 import { Modal } from "./Modal";
 import { FormDespacho } from "./FormDespacho";
-import axios from "axios";
+import { api } from "../../config/api";
 
 export const TableCompras = () => {
   const [ventas, setVentas] = useState([]);
 
   const compras = async () => {
-    await axios.get("http://localhost:8081/api/v1/ventas", {
-      headers:{
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-  }
-    }).then((response) => {
+    await api.get("/ventas").then((response) => {
       console.log(response.data);
       setVentas(response.data);
     });

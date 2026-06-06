@@ -7,17 +7,16 @@ metadata:
     kubernetes.io/ingress.class: nginx
 spec:
   rules:
-  - host: example.local
-    http:
+  - http:
       paths:
-      - path: /api/despachos
+      - path: /api/v1/despachos
         pathType: Prefix
         backend:
           service:
             name: despachos-service
             port:
               number: 80
-      - path: /api/ventas
+      - path: /api/v1/ventas
         pathType: Prefix
         backend:
           service:

@@ -18,3 +18,8 @@ spec:
         image: citt/front-despacho:latest
         ports:
         - containerPort: 80
+        env:
+        - name: VENTAS_BACK_HOST
+          value: ventas-service:80
+        - name: DESPACHOS_BACK_HOST
+          value: despachos-service:80
