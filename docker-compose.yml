@@ -89,6 +89,7 @@ services:
 
     environment:
       - VENTAS_BACK_HOST=ventas-back:8080
+      - DESPACHOS_BACK_HOST=despachos-back:8080
 
     depends_on:
       - ventas-back

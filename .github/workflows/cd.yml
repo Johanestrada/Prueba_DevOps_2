@@ -1,0 +1,105 @@
+name: CD - Deploy to AWS EKS
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      PROJECT_NAME: inventario-devops
+      EKS_CLUSTER_NAME: app-eks-cluster
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Get AWS Account ID
+        id: account
+        run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+
+      - name: Set image names
+        run: |
+          echo "ECR_VENTAS=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PROJECT_NAME }}-ventas-back" >> $GITHUB_ENV
+          echo "ECR_DESPACHOS=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PROJECT_NAME }}-despachos-back" >> $GITHUB_ENV
+          echo "ECR_FRONTEND=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PROJECT_NAME }}-frontend" >> $GITHUB_ENV
+
+      - name: Ensure ECR repositories exist
+        run: |
+          repos=("${ECR_VENTAS##*/}" "${ECR_DESPACHOS##*/}" "${ECR_FRONTEND##*/}")
+          for r in "${repos[@]}"; do
+            if aws ecr describe-repositories --repository-names "$r" --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+              echo "Repository $r exists"
+            else
+              echo "Creating repository $r"
+              aws ecr create-repository --repository-name "$r" --region ${{ env.AWS_REGION }} || true
+            fi
+          done
+
+      - name: Build ventas backend image
+        run: |
+          docker buildx build --platform linux/amd64 -t $ECR_VENTAS:${GITHUB_SHA} ./back-Ventas_SpringBoot --load
+      - name: Push ventas image
+        run: |
+          docker push $ECR_VENTAS:${GITHUB_SHA}
+
+      - name: Build despachos backend image
+        run: |
+          docker buildx build --platform linux/amd64 -t $ECR_DESPACHOS:${GITHUB_SHA} ./back-Despachos_SpringBoot --load
+      - name: Push despachos image
+        run: |
+          docker push $ECR_DESPACHOS:${GITHUB_SHA}
+
+      - name: Build frontend image
+        run: |
+          docker buildx build --platform linux/amd64 -t $ECR_FRONTEND:${GITHUB_SHA} ./front_despacho --load
+      - name: Push frontend image
+        run: |
+          docker push $ECR_FRONTEND:${GITHUB_SHA}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Create db-secret from GitHub Secrets
+        env:
+          SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
+          SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
+          SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+        run: |
+          kubectl create namespace app --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic db-secret \
+            --from-literal=SPRING_DATASOURCE_URL="$SPRING_DATASOURCE_URL" \
+            --from-literal=SPRING_DATASOURCE_USERNAME="$SPRING_DATASOURCE_USERNAME" \
+            --from-literal=SPRING_DATASOURCE_PASSWORD="$SPRING_DATASOURCE_PASSWORD" \
+            --namespace app --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f infra/k8s/ --namespace app
+
+      - name: Update deployment images
+        run: |
+          kubectl set image deployment/ventas-deployment ventas=$ECR_VENTAS:${GITHUB_SHA} -n app
+          kubectl set image deployment/despachos-deployment despachos=$ECR_DESPACHOS:${GITHUB_SHA} -n app
+          kubectl set image deployment/frontend-deployment frontend=$ECR_FRONTEND:${GITHUB_SHA} -n app
+
+      - name: Wait for rollouts
+        run: |
+          kubectl rollout status deployment/ventas-deployment -n app
+          kubectl rollout status deployment/despachos-deployment -n app
+          kubectl rollout status deployment/frontend-deployment -n app
