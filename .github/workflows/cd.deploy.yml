@@ -1,0 +1,178 @@
+name: CD - Deploy to AWS ECS
+
+on:
+  push:
+    branches: [ "main", "develop", "feature/ci-cd" ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  PROJECT_NAME: prueba_devops_2
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+
+    steps:
+      # =========================
+      # 1. CODE
+      # =========================
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # =========================
+      # 2. AWS AUTH
+      # =========================
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # =========================
+      # 3. ECR LOGIN
+      # =========================
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Get AWS Account ID
+        id: get-aws-id
+        run: |
+          echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
+
+      # =========================
+      # 4. TERRAFORM
+      # =========================
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: infra
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
+        run: terraform init -input=false
+
+      - name: Terraform Format Check
+        working-directory: infra
+        run: terraform fmt -check
+
+      - name: Terraform Plan
+        working-directory: infra
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: infra
+        run: terraform apply -auto-approve tfplan
+
+      # =========================
+      # 5. BUILD BACKEND VENTAS
+      # =========================
+      - name: Build & Push Ventas Backend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        working-directory: back-Ventas_SpringBoot/Springboot-API-REST
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:latest .
+          docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back:${{ github.sha }}
+          docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-ventas-back
+
+      # =========================
+      # 6. BUILD BACKEND DESPACHOS
+      # =========================
+      - name: Build & Push Despachos Backend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        working-directory: back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:latest .
+          docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back:${{ github.sha }}
+          docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-despachos-back
+
+      # =========================
+      # 7. FRONTEND
+      # =========================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Frontend deps
+        working-directory: front_despacho
+        run: npm ci
+
+      - name: Build Frontend
+        working-directory: front_despacho
+        run: npm run build
+
+      - name: Build & Push Frontend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        working-directory: front_despacho
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:latest .
+          docker tag $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:latest $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend:${{ github.sha }}
+          docker push --all-tags $ECR_REGISTRY/${{ env.PROJECT_NAME }}-frontend
+
+      # =========================
+      # 8. FORCE ECS DEPLOY
+      # =========================
+      - name: Force deploy Ventas
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.get-aws-id.outputs.account_id }}
+        run: |
+          aws ecs update-service \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --service ventas-back-service \
+            --force-new-deployment
+
+      - name: Force deploy Despachos
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.get-aws-id.outputs.account_id }}
+        run: |
+          aws ecs update-service \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --service despachos-back-service \
+            --force-new-deployment
+
+      - name: Force deploy Frontend
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.get-aws-id.outputs.account_id }}
+        run: |
+          aws ecs update-service \
+            --cluster arn:aws:ecs:${{ env.AWS_REGION }}:${AWS_ACCOUNT_ID}:cluster/${{ env.PROJECT_NAME }}-ecs-cluster \
+            --service frontend-service \
+            --force-new-deployment
+
+      # =========================
+      # 9. SUMMARY
+      # =========================
+      - name: Deployment Summary
+        run: |
+          echo "========================"
+          echo "DEPLOY DONE"
+          echo "Project: ${{ env.PROJECT_NAME }}"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "========================"
+
+      # =========================
+      # 10. FAILURE HANDLER
+      # =========================
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "Deployment failed"
+          exit 1

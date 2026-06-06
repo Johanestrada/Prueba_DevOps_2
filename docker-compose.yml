@@ -8,6 +8,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_HOST: "%"
 
     ports:
       - "3306:3306"
@@ -32,11 +33,11 @@ services:
     image: ecommerce-ventas-back:1.0
     container_name: ecommerce-ventas-back
     restart: unless-stopped
-
     ports:
       - "8081:8080"
 
     environment:
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQLDialect
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -48,21 +49,30 @@ services:
     networks:
       - ecommerce-net
 
-#  despachos-back:
-#    build:
-#      context: ./back-Despachos_SpringBoot
-#      dockerfile: Dockerfile
-#
-#    image: ecommerce-despachos-back:1.0
-#    container_name: ecommerce-despachos-back
-#
-#    restart: unless-stopped
-#
-#    ports:
-#      - "8082:8080"
-#
-#    networks:
-#      - ecommerce-net
+  despachos-back:
+    build:
+      context: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+      dockerfile: Dockerfile
+
+    image: ecommerce-despachos-back:1.0
+    container_name: ecommerce-despachos-back
+    restart: unless-stopped
+
+    ports:
+      - "8082:8080"
+
+    environment:
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQLDialect
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+    networks:
+      - ecommerce-net
 
   frontend:
     build:
@@ -77,8 +87,13 @@ services:
     ports:
       - "3000:80"
 
+    environment:
+      - VENTAS_BACK_HOST=ventas-back:8080
+      - DESPACHOS_BACK_HOST=despachos-back:8080
+
     depends_on:
       - ventas-back
+      - despachos-back
 
     networks:
       - ecommerce-net
