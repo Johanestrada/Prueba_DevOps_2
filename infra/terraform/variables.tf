@@ -62,3 +62,15 @@ variable "eks_max_capacity" {
   type        = number
   default     = 3
 }
+
+variable "mysql_database" {
+  description = "Nombre de la base de datos MySQL"
+  type        = string
+  default     = "ecommerce"
+}
+
+variable "mysql_root_password" {
+  description = "Password root para MySQL"
+  type        = string
+  sensitive   = true
+}

@@ -51,8 +51,8 @@ resource "aws_instance" "mysql" {
     # correr mysql automáticamente
     docker run -d \
       --name mysql \
-      -e MYSQL_ROOT_PASSWORD=123456 \
-      -e MYSQL_DATABASE=ecommerce \
+      -e MYSQL_ROOT_PASSWORD=${var.mysql_root_password} \
+      -e MYSQL_DATABASE=${var.mysql_database} \
       -p 3306:3306 \
       mysql:8
   EOF

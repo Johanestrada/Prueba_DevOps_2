@@ -22,7 +22,7 @@ Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, fron
 
 ### Base de Datos
 - **MySQL 8** en EC2 pública
-- Acceso restringido desde ECS
+- Acceso restringido desde el clúster EKS
 
 
 ### Infraestructura (Terraform)
@@ -43,7 +43,7 @@ Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, fron
 
 ## Arquitectura del Proyecto
 
-A continuación se muestra el diagrama de la arquitectura desplegada en AWS, incluyendo el flujo desde los repositorios, la construcción y almacenamiento de imágenes en ECR, y el despliegue en ECS/EC2:
+A continuación se muestra el diagrama de la arquitectura desplegada en AWS, incluyendo el flujo desde los repositorios, la construcción y almacenamiento de imágenes en ECR, y el despliegue en EKS/Kubernetes:
 
 ![Diagrama Arquitectura AWS EKS](infra/AWS_Diagrama.png)
 
@@ -123,8 +123,10 @@ Push ECR
       ↓
 Terraform Apply
       ↓
-ECS Deploy
+EKS Deploy
 ```
+
+> Nota: El workflow activo para despliegue es `.github/workflows/cd.yml` (EKS). El archivo `.github/workflows/cd.deploy.yml` se conserva solo como referencia.
 
 ---
 
@@ -221,7 +223,7 @@ docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-fronten
 
 ---
 
-# Forzar Redeploy ECS
+# Forzar Redeploy ECS (referencia archivada, este proyecto usa EKS)
 
 ```bash
 $cluster = "arn:aws:ecs:us-east-1:348374603543:cluster/prueba_devops_2-ecs-cluster"
