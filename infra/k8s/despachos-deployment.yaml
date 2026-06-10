@@ -15,9 +15,16 @@ spec:
     spec:
       containers:
       - name: despachos
-        image: 387380359607.dkr.ecr.us-east-1.amazonaws.com/inventario-devops-despachos-back:latest
+        image: 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-despachos-back:latest
         ports:
         - containerPort: 8080
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "768Mi"
         env:
         - name: SPRING_PROFILES_ACTIVE
           value: "prod"
