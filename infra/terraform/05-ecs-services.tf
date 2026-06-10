@@ -113,7 +113,7 @@
 #         },
 #         {
 #           name  = "SPRING_DATASOURCE_PASSWORD",
-#           value = "123456"
+#           value = "<MYSQL_ROOT_PASSWORD>"
 #         }
 #       ],
 #
@@ -180,7 +180,7 @@
 #         },
 #         {
 #           name  = "SPRING_DATASOURCE_PASSWORD"
-#           value = "123456"
+#           value = "<MYSQL_ROOT_PASSWORD>"
 #         }
 #       ],
 #
