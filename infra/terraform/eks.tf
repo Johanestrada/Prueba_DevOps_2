@@ -19,6 +19,10 @@ resource "aws_eks_cluster" "eks" {
   tags = {
     Project = var.project_name
   }
+
+  # Forzar la destrucción del grupo de nodos antes que el clúster.
+  # Esto evita el error "ResourceInUseException" durante la destrucción.
+  depends_on = [aws_eks_node_group.workers]
 }
 
 resource "aws_eks_node_group" "workers" {
