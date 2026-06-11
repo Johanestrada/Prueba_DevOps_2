@@ -23,8 +23,9 @@ variable "project_name" {
 # }
 
 variable "key_pair_name" {
-  description = "Key pair para acceso SSH"
+  description = "Key pair para acceso SSH; dejar vacío si no se usa"
   type        = string
+  default     = ""
 }
 
 variable "enable_eks" {
