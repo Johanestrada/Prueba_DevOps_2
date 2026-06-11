@@ -2,7 +2,7 @@ name: CD - Deploy to AWS EKS
 on:
   push:
     branches:
-      - deploy
+      - feature/ci-cd
   workflow_dispatch:
 
 jobs:
