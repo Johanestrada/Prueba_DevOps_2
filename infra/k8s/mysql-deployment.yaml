@@ -1,3 +1,15 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+  namespace: app
+type: Opaque
+stringData:
+  SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ecommerce
+  SPRING_DATASOURCE_USERNAME: root
+  SPRING_DATASOURCE_PASSWORD: root
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,15 +26,16 @@ spec:
         app: mysql
     spec:
       containers:
-      - name: mysql
-        image: mysql:8.0
-        ports:
-        - containerPort: 3306
-        env:
-        - name: MYSQL_ROOT_PASSWORD
-          value: "123456"
-        - name: MYSQL_DATABASE
-          value: "ecommerce"
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: root
+            - name: MYSQL_DATABASE
+              value: ecommerce
+
 ---
 apiVersion: v1
 kind: Service
@@ -33,6 +46,6 @@ spec:
   selector:
     app: mysql
   ports:
-  - port: 3306
-    targetPort: 3306
+    - port: 3306
+      targetPort: 3306
   type: ClusterIP
