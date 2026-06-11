@@ -38,6 +38,14 @@ jobs:
           echo "ECR_REPO_DESPACHOS=${{ env.PROJECT_NAME }}-despachos-back" >> $GITHUB_ENV
           echo "ECR_REPO_FRONTEND=${{ env.PROJECT_NAME }}-frontend" >> $GITHUB_ENV
 
+      - name: Export Terraform variables to job env
+        run: |
+          echo "TF_VAR_aws_region=${{ env.AWS_REGION }}" >> $GITHUB_ENV
+          echo "TF_VAR_project_name=${{ env.PROJECT_NAME }}" >> $GITHUB_ENV
+          echo "TF_VAR_key_pair_name=${{ secrets.KEY_PAIR_NAME }}" >> $GITHUB_ENV
+          echo "TF_VAR_mysql_root_password=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> $GITHUB_ENV
+          echo "TF_VAR_mysql_database=${{ secrets.MYSQL_DATABASE }}" >> $GITHUB_ENV
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
