@@ -5,7 +5,7 @@ name: CI - Backend Build & Test
 on:
   # Se activa cada vez que se hace un push a la rama 'develop'
   push:
-    branches: [ "develop" ]
+    branches: [ "feature/ci-cd" ]
   # También permite ejecutarlo manualmente desde la UI de GitHub
   workflow_dispatch:
 
