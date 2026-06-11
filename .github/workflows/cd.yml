@@ -43,7 +43,7 @@ jobs:
         with:
           terraform_version: '1.5.7'
 
-      - name: Terraform Init & Apply
+      - name: Terraform Init
         working-directory: infra/terraform
         env:
           AWS_REGION: ${{ env.AWS_REGION }}
@@ -54,6 +54,54 @@ jobs:
           TF_VAR_aws_region: ${{ env.AWS_REGION }}
         run: |
           terraform init -input=false
+
+      - name: Import existing ECR repos into Terraform state (if present)
+        working-directory: infra/terraform
+        run: |
+          set -e
+          FRONT=${ECR_REPO_FRONTEND}
+          VENTAS=${ECR_REPO_VENTAS}
+          DESPACHOS=${ECR_REPO_DESPACHOS}
+
+          echo "Checking ECR repo: $FRONT"
+          if ! terraform state list | grep -q "aws_ecr_repository.frontend"; then
+            if aws ecr describe-repositories --repository-names "$FRONT" >/dev/null 2>&1; then
+              echo "Importing $FRONT into terraform state as aws_ecr_repository.frontend"
+              terraform import aws_ecr_repository.frontend "$FRONT" || true
+            else
+              echo "$FRONT not present - will be created by Terraform"
+            fi
+          else
+            echo "aws_ecr_repository.frontend already in state"
+          fi
+
+          echo "Checking ECR repo: $VENTAS"
+          if ! terraform state list | grep -q "aws_ecr_repository.ventas_back"; then
+            if aws ecr describe-repositories --repository-names "$VENTAS" >/dev/null 2>&1; then
+              echo "Importing $VENTAS into terraform state as aws_ecr_repository.ventas_back"
+              terraform import aws_ecr_repository.ventas_back "$VENTAS" || true
+            else
+              echo "$VENTAS not present - will be created by Terraform"
+            fi
+          else
+            echo "aws_ecr_repository.ventas_back already in state"
+          fi
+
+          echo "Checking ECR repo: $DESPACHOS"
+          if ! terraform state list | grep -q "aws_ecr_repository.despachos_back"; then
+            if aws ecr describe-repositories --repository-names "$DESPACHOS" >/dev/null 2>&1; then
+              echo "Importing $DESPACHOS into terraform state as aws_ecr_repository.despachos_back"
+              terraform import aws_ecr_repository.despachos_back "$DESPACHOS" || true
+            else
+              echo "$DESPACHOS not present - will be created by Terraform"
+            fi
+          else
+            echo "aws_ecr_repository.despachos_back already in state"
+          fi
+
+      - name: Terraform Apply
+        working-directory: infra/terraform
+        run: |
           terraform apply -input=false -auto-approve
           EKS_NAME=$(terraform output -raw eks_cluster_name 2>/dev/null || echo "")
           if [ -n "$EKS_NAME" ]; then
