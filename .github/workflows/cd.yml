@@ -11,7 +11,7 @@ jobs:
     env:
       AWS_REGION: us-east-1
       PROJECT_NAME: prueba_devops_2
-      EKS_CLUSTER_NAME: prueba_devops_2-eks-cluster # Alineado con el nombre del proyecto en Terraform
+      EKS_CLUSTER_NAME: prueba_devops_2-eks-cluster # Construido a partir de PROJECT_NAME
     steps:
       - name: Checkout
         uses: actions/checkout@v4

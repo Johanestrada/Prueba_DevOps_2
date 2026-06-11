@@ -4,7 +4,7 @@ data "aws_iam_role" "labrole" {
 
 resource "aws_eks_cluster" "eks" {
   count    = var.enable_eks ? 1 : 0
-  name     = var.eks_cluster_name
+  name     = "${var.project_name}-eks-cluster"
   role_arn = data.aws_iam_role.labrole.arn
   version  = "1.33"
 
