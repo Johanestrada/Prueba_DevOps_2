@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1
-      PROJECT_NAME: inventario-devops
-      EKS_CLUSTER_NAME: inventario-devops-eks-cluster # Nombre dinámico basado en PROJECT_NAME
+      PROJECT_NAME: prueba_devops_2
+      EKS_CLUSTER_NAME: prueba_devops_2-eks-cluster # Alineado con el nombre del proyecto en Terraform
     steps:
       - name: Checkout
         uses: actions/checkout@v4
