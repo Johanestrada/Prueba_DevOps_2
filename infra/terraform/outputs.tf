@@ -27,8 +27,3 @@ output "ecr_despachos_repository_url" {
   description = "ECR repository URL for despachos backend"
   value       = aws_ecr_repository.despachos_back.repository_url
 }
-
-output "eks_cluster_name" {
-  description = "El nombre del clúster de EKS creado."
-  value       = var.enable_eks ? aws_eks_cluster.eks[0].name : ""
-}
