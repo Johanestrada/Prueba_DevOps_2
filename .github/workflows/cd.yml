@@ -139,20 +139,50 @@ jobs:
       - name: Import existing EKS cluster into Terraform state (if present)
         working-directory: infra/terraform
         run: |
-          set -e
-          # prefer explicit EKS_CLUSTER_NAME if set, otherwise use project-based default
-          CLUSTER_NAME="${EKS_CLUSTER_NAME:-${PROJECT_NAME}-eks-cluster}"
-          echo "Checking for EKS cluster: $CLUSTER_NAME"
-          if ! terraform state list | grep -q "aws_eks_cluster.eks"; then
-            if aws eks describe-cluster --name "$CLUSTER_NAME" --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
-              echo "Importing $CLUSTER_NAME into terraform state as aws_eks_cluster.eks[0]"
-              terraform import 'aws_eks_cluster.eks[0]' "$CLUSTER_NAME" || true
-            else
-              echo "$CLUSTER_NAME not present - will be created by Terraform"
-            fi
-          else
+          set -euo pipefail
+          # Try several possible cluster names and also scan existing clusters
+          echo "Looking for existing EKS cluster to import..."
+          if terraform state list | grep -q "aws_eks_cluster.eks"; then
             echo "aws_eks_cluster.eks already in state"
+            exit 0
           fi
+
+          candidates=()
+          if [ -n "${EKS_CLUSTER_NAME:-}" ]; then
+            candidates+=("$EKS_CLUSTER_NAME")
+          fi
+          candidates+=("${PROJECT_NAME}-eks-cluster")
+          candidates+=("app-eks-cluster")
+
+          # add clusters from AWS that contain project name or 'eks'
+          mapfile -t aws_clusters < <(aws eks list-clusters --region ${{ env.AWS_REGION }} --output text | tr '\t' '\n' 2>/dev/null || true)
+          for c in "${aws_clusters[@]:-}"; do
+            # prefer clusters that include the project name
+            if [[ "$c" == *"${PROJECT_NAME}"* ]] || [[ "$c" == *"eks"* ]]; then
+              candidates+=("$c")
+            fi
+          done
+
+          tried=()
+          for name in "${candidates[@]}"; do
+            # avoid duplicates
+            if [[ " ${tried[*]} " == *" $name "* ]]; then
+              continue
+            fi
+            tried+=("$name")
+            echo "Checking cluster candidate: $name"
+            if aws eks describe-cluster --name "$name" --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+              echo "Found cluster $name, importing into terraform state as aws_eks_cluster.eks[0]"
+              terraform import 'aws_eks_cluster.eks[0]' "$name"
+              echo "Import completed. Current terraform state entries:" 
+              terraform state list || true
+              exit 0
+            else
+              echo "$name not present in AWS (or insufficient permissions)"
+            fi
+          done
+
+          echo "No existing EKS cluster found to import. Terraform will attempt to create one."
 
       - name: Terraform Apply
         working-directory: infra/terraform
