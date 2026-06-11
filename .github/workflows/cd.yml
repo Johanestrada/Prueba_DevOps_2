@@ -107,6 +107,24 @@ jobs:
             echo "aws_ecr_repository.despachos_back already in state"
           fi
 
+      - name: Import existing EKS cluster into Terraform state (if present)
+        working-directory: infra/terraform
+        run: |
+          set -e
+          # prefer explicit EKS_CLUSTER_NAME if set, otherwise use project-based default
+          CLUSTER_NAME="${EKS_CLUSTER_NAME:-${PROJECT_NAME}-eks-cluster}"
+          echo "Checking for EKS cluster: $CLUSTER_NAME"
+          if ! terraform state list | grep -q "aws_eks_cluster.eks"; then
+            if aws eks describe-cluster --name "$CLUSTER_NAME" --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+              echo "Importing $CLUSTER_NAME into terraform state as aws_eks_cluster.eks[0]"
+              terraform import 'aws_eks_cluster.eks[0]' "$CLUSTER_NAME" || true
+            else
+              echo "$CLUSTER_NAME not present - will be created by Terraform"
+            fi
+          else
+            echo "aws_eks_cluster.eks already in state"
+          fi
+
       - name: Terraform Apply
         working-directory: infra/terraform
         run: |
