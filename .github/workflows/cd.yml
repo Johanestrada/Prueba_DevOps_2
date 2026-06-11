@@ -38,6 +38,40 @@ jobs:
           echo "ECR_REPO_DESPACHOS=${{ env.PROJECT_NAME }}-despachos-back" >> $GITHUB_ENV
           echo "ECR_REPO_FRONTEND=${{ env.PROJECT_NAME }}-frontend" >> $GITHUB_ENV
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.5.7'
+
+      - name: Terraform Init & Apply
+        working-directory: infra/terraform
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          TF_VAR_mysql_root_password: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          TF_VAR_mysql_database: ${{ secrets.MYSQL_DATABASE }}
+          TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve
+          EKS_NAME=$(terraform output -raw eks_cluster_name 2>/dev/null || echo "")
+          if [ -n "$EKS_NAME" ]; then
+            echo "EKS_CLUSTER_NAME=$EKS_NAME" >> $GITHUB_ENV
+          fi
+
+      - name: Diagnose EKS cluster presence
+        run: |
+          aws sts get-caller-identity --output text
+          aws eks list-clusters --region ${{ env.AWS_REGION }} || true
+          echo "EKS_CLUSTER_NAME is: $EKS_CLUSTER_NAME"
+          if [ -z "$EKS_CLUSTER_NAME" ]; then
+            echo "EKS_CLUSTER_NAME not set (terraform may have failed)."
+            exit 1
+          fi
+          if ! aws eks describe-cluster --name "$EKS_CLUSTER_NAME" --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+            echo "EKS cluster '$EKS_CLUSTER_NAME' not found in this account/region."
+            exit 1
+          fi
+
       - name: Ensure ECR repositories exist
         run: |
           repos=("${{ env.ECR_REPO_VENTAS }}" "${{ env.ECR_REPO_DESPACHOS }}" "${{ env.ECR_REPO_FRONTEND }}")
