@@ -33,45 +33,39 @@ jobs:
 
       - name: Set image names
         run: |
-          echo "ECR_VENTAS=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PROJECT_NAME }}-ventas-back" >> $GITHUB_ENV
-          echo "ECR_DESPACHOS=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PROJECT_NAME }}-despachos-back" >> $GITHUB_ENV
-          echo "ECR_FRONTEND=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.PROJECT_NAME }}-frontend" >> $GITHUB_ENV
+          echo "ECR_REGISTRY=${{ env.ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_ENV
+          echo "ECR_REPO_VENTAS=${{ env.PROJECT_NAME }}-ventas-back" >> $GITHUB_ENV
+          echo "ECR_REPO_DESPACHOS=${{ env.PROJECT_NAME }}-despachos-back" >> $GITHUB_ENV
+          echo "ECR_REPO_FRONTEND=${{ env.PROJECT_NAME }}-frontend" >> $GITHUB_ENV
 
       - name: Ensure ECR repositories exist
         run: |
-          repos=("${ECR_VENTAS##*/}" "${ECR_DESPACHOS##*/}" "${ECR_FRONTEND##*/}")
+          repos=("${{ env.ECR_REPO_VENTAS }}" "${{ env.ECR_REPO_DESPACHOS }}" "${{ env.ECR_REPO_FRONTEND }}")
           for r in "${repos[@]}"; do
-            if aws ecr describe-repositories --repository-names "$r" --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
-              echo "Repository $r exists"
-            else
-              echo "Creating repository $r"
-              aws ecr create-repository --repository-name "$r" --region ${{ env.AWS_REGION }} || true
-            fi
+            aws ecr describe-repositories --repository-names "$r" >/dev/null 2>&1 || \
+              aws ecr create-repository --repository-name "$r"
           done
 
-      - name: Build ventas backend image
+      - name: Build and Push ventas backend image
         run: |
-          docker buildx build --platform linux/amd64 -t $ECR_VENTAS:${GITHUB_SHA} -t $ECR_VENTAS:latest ./back-Ventas_SpringBoot/Springboot-API-REST --load
-      - name: Push ventas image
-        run: |
-          docker push $ECR_VENTAS:${GITHUB_SHA}
-          docker push $ECR_VENTAS:latest
+          docker buildx build --platform linux/amd64 \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_VENTAS }}:${{ github.sha }} \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_VENTAS }}:latest \
+            ./back-Ventas_SpringBoot/Springboot-API-REST --push
 
-      - name: Build despachos backend image
+      - name: Build and Push despachos backend image
         run: |
-          docker buildx build --platform linux/amd64 -t $ECR_DESPACHOS:${GITHUB_SHA} -t $ECR_DESPACHOS:latest ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO --load
-      - name: Push despachos image
-        run: |
-          docker push $ECR_DESPACHOS:${GITHUB_SHA}
-          docker push $ECR_DESPACHOS:latest
+          docker buildx build --platform linux/amd64 \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_DESPACHOS }}:${{ github.sha }} \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_DESPACHOS }}:latest \
+            ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO --push
 
-      - name: Build frontend image
+      - name: Build and Push frontend image
         run: |
-          docker buildx build --platform linux/amd64 -t $ECR_FRONTEND:${GITHUB_SHA} -t $ECR_FRONTEND:latest ./front_despacho --load
-      - name: Push frontend image
-        run: |
-          docker push $ECR_FRONTEND:${GITHUB_SHA}
-          docker push $ECR_FRONTEND:latest
+          docker buildx build --platform linux/amd64 \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_FRONTEND }}:${{ github.sha }} \
+            -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_FRONTEND }}:latest \
+            ./front_despacho --push
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
@@ -99,9 +93,12 @@ jobs:
 
       - name: Update deployment images
         run: |
-          kubectl set image deployment/ventas-deployment ventas=$ECR_VENTAS:${GITHUB_SHA} -n app
-          kubectl set image deployment/despachos-deployment despachos=$ECR_DESPACHOS:${GITHUB_SHA} -n app
-          kubectl set image deployment/frontend-deployment frontend=$ECR_FRONTEND:${GITHUB_SHA} -n app
+          IMAGE_VENTAS=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_VENTAS }}:${{ github.sha }}
+          IMAGE_DESPACHOS=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_DESPACHOS }}:${{ github.sha }}
+          IMAGE_FRONTEND=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_FRONTEND }}:${{ github.sha }}
+          kubectl set image deployment/ventas-deployment ventas=$IMAGE_VENTAS -n app
+          kubectl set image deployment/despachos-deployment despachos=$IMAGE_DESPACHOS -n app
+          kubectl set image deployment/frontend-deployment frontend=$IMAGE_FRONTEND -n app
 
       - name: Wait for rollouts
         run: |
