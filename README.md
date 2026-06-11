@@ -1,273 +1,70 @@
-Prueba DevOps 2 - E-Commerce Deployment
+# Prueba DevOps 2 - Despliegue de E-Commerce en AWS EKS
 
-Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, frontend React y orquestación con EKS (Kubernetes), ECR y Terraform.
+Proyecto de despliegue de una aplicación de E-Commerce en AWS, utilizando microservicios (Spring Boot), un frontend (React) y orquestación con Kubernetes (EKS). La infraestructura se gestiona como código con Terraform y el ciclo de CI/CD se automatiza con GitHub Actions.
 
+## Arquitectura
 
+A continuación se muestra el diagrama de la arquitectura desplegada en AWS. El flujo va desde el código en GitHub, pasando por la construcción de imágenes en ECR, hasta el despliegue final en un clúster de EKS.
 
+![Diagrama de Arquitectura en AWS](infra/AWS_Diagrama.png)
 
+## 📜 Índice
 
+- [Componentes del Proyecto](#-componentes-del-proyecto)
+- [🚀 Despliegue Rápido](#-despliegue-rápido)
+  - [Prerrequisitos](#prerrequisitos)
+  - [Pasos de Despliegue](#pasos-de-despliegue)
+- [🤖 Pipeline CI/CD](#-pipeline-cicd)
+  - [Flujo de Trabajo](#flujo-de-trabajo)
+  - [Secrets de GitHub](#secrets-de-github-requeridos)
+- [🔧 Desarrollo Local](#-desarrollo-local)
+  - [Build Manual de Docker](#build-manual-de-docker)
+- [📂 Estructura del Proyecto](#-estructura-del-proyecto)
 
+---
 
-## Componentes
+## 🛠️ Componentes del Proyecto
 
 ### Backend Microservicios
-- **Ventas API** (`back-Ventas_SpringBoot/`): Gestión de ventas y compras
-- **Despachos API** (`back-Despachos_SpringBoot/`): Gestión de envíos
-- Ambos en Spring Boot 3.4.4 con JPA y MySQL 8
+- **API de Ventas** (`/back-Ventas_SpringBoot`): Microservicio en Spring Boot para la gestión de ventas.
+- **API de Despachos** (`/back-Despachos_SpringBoot`): Microservicio en Spring Boot para la gestión de despachos.
 
 ### Frontend
-- **React + Vite** (`front_despacho/`)
-- Tailwind CSS
-- Nginx como proxy inverso
+- **Aplicación de Cliente** (`/front_despacho`): Interfaz de usuario construida con React, Vite y Tailwind CSS, servida a través de Nginx.
 
 ### Base de Datos
-- **MySQL 8** en EC2 pública
-- Acceso restringido desde el clúster EKS
-
+- **MySQL 8**: Desplegada en una instancia EC2 pública, con acceso restringido por Security Groups para permitir conexiones solo desde el clúster de EKS.
 
 ### Infraestructura (Terraform)
-- VPC
-- Subnets públicas y privadas
-- EKS Cluster (Kubernetes)
-- ECR
-- NAT Gateway
-- VPC Endpoints
-- Security Groups
+El directorio `/infra/terraform` contiene el código para provisionar:
+- **Red:** VPC, Subnets públicas/privadas, Internet Gateway y NAT Gateway.
+- **Computo:** Clúster de EKS con un grupo de nodos autogestionado.
+- **Contenedores:** Repositorios ECR para las imágenes Docker.
+- **Seguridad:** Security Groups para controlar el tráfico entre los componentes.
 
 ### Orquestación (Kubernetes)
-- Deployments para Microservicios y Frontend
-- Services (ClusterIP/LoadBalancer)
-- ConfigMaps para variables de entorno
+El directorio `/infra/k8s` contiene los manifiestos para desplegar:
+- **Deployments:** Para cada microservicio y el frontend.
+- **Services:** Para exponer las aplicaciones (ClusterIP para comunicación interna y LoadBalancer para el frontend).
+- **Secrets:** Para gestionar las credenciales de la base de datos de forma segura.
 
 ---
 
-## Arquitectura del Proyecto
+## 🚀 Despliegue Rápido
 
-A continuación se muestra el diagrama de la arquitectura desplegada en AWS, incluyendo el flujo desde los repositorios, la construcción y almacenamiento de imágenes en ECR, y el despliegue en EKS/Kubernetes:
-
-![Diagrama Arquitectura AWS EKS](infra/AWS_Diagrama.png)
-
----
-
-# Despliegue Rápido
-
-## Prerequisitos
-
+----
+### Prerrequisitos
 - AWS CLI configurado
 - Terraform >= 1.0
 - Docker Desktop
 - Node.js 20+
+- `kubectl`
 
 ---
 
-## 1. Clonar Repositorio
+### Pasos de Despliegue
 
+1.  **Clonar el Repositorio**
 ```bash
 git clone <repo-url>
 cd Prueba_DevOps_2
-```
-
----
-
-## 2. Configurar AWS CLI
-
-```bash
-aws configure
-```
-
-Ingresar:
-- Access Key
-- Secret Key
-- Region: `us-east-1`
-- Output format: `json`
-
----
-
-## 3. Desplegar Infraestructura
-
-```bash
-cd infra/terraform
-
-terraform plan
-
-terraform apply -auto-approve
-```
-
----
-
-## 4. Obtener DNS del Frontend
-
-```bash
-aws elbv2 describe-load-balancers \
-  --region us-east-1 \
-  --query 'LoadBalancers[?LoadBalancerName==`prueba_devops_2-frontend-alb`].DNSName' \
-  --output text
-```
-
----
-
-# CI/CD Pipeline
-
-## Flujo
-
-```text
-develop/main
-      ↓
-GitHub Actions
-      ↓
-Build & Test
-      ↓
-Docker Build
-      ↓
-Push ECR
-      ↓
-Terraform Apply
-      ↓
-EKS Deploy
-```
-
-> Nota: El workflow activo para despliegue es `.github/workflows/cd.yml` (EKS). El archivo `.github/workflows/cd.deploy.yml` se conserva solo como referencia.
-
----
-
-## Secrets GitHub
-
-```text
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-AWS_REGION
-ECR_REGISTRY
-MYSQL_ROOT_PASSWORD
-MYSQL_DATABASE
-```
-
----
-
-# Variables Terraform
-
-Archivo:
-
-```text
-infra/terraform/terraform.tfvars
-```
-
-Contenido:
-
-```hcl
-aws_region    = "us-east-1"
-project_name  = "prueba_devops_2"
-key_pair_name = "prueba_2"
-```
-
----
-
-# Acceso a Servicios
-
-| Servicio | Acceso |
-|----------|---------|
-| Frontend | ALB DNS |
-| Ventas API | http://ALB:8080/swagger-ui |
-| Despachos API | http://ALB:8080/swagger-ui |
-| MySQL | EC2-IP:3306 |
-
----
-
-# Docker Build Manual
-
-## Login ECR
-
-```bash
-aws ecr get-login-password --region us-east-1 | \
-docker login --username AWS --password-stdin 348374603543.dkr.ecr.us-east-1.amazonaws.com
-```
-
----
-
-## Backend Ventas
-
-```bash
-cd back-Ventas_SpringBoot/Springboot-API-REST
-
-docker build -t 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-ventas-back:latest .
-
-docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-ventas-back:latest
-```
-
----
-
-## Backend Despachos
-
-```bash
-cd ../../back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
-
-docker build -t 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-despachos-back:latest .
-
-docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-despachos-back:latest
-```
-
----
-
-## Frontend
-
-```bash
-cd ../../front_despacho
-
-npm install
-
-npm run build
-
-docker build -t 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-frontend:latest .
-
-docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-frontend:latest
-```
-
----
-
-# Forzar Redeploy ECS (referencia archivada, este proyecto usa EKS)
-
-```bash
-$cluster = "arn:aws:ecs:us-east-1:348374603543:cluster/prueba_devops_2-ecs-cluster"
-
-aws ecs update-service --cluster $cluster \
-  --service ventas-back-service \
-  --force-new-deployment --region us-east-1
-
-aws ecs update-service --cluster $cluster \
-  --service despachos-back-service \
-  --force-new-deployment --region us-east-1
-
-aws ecs update-service --cluster $cluster \
-  --service frontend-service \
-  --force-new-deployment --region us-east-1
-```
-
----
-
-## Ver imágenes ECR
-
-```bash
-aws ecr list-images \
-  --repository-name prueba_devops_2-ventas-back \
-  --region us-east-1
-```
-
----
-
-# Estructura del Proyecto
-
-```text
-Prueba_DevOps_2/
-├── .github/
-│   └── workflows/
-│       ├── ci.backend.yml
-│       └── cd.deploy.yml
-├── infra/
-├── k8s/
-├── back-Ventas_SpringBoot/
-├── back-Despachos_SpringBoot/
-├── front_despacho/
-├── docker-compose.yml
-└── README.md
-```
-
----
