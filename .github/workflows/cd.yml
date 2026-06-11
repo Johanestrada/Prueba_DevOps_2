@@ -50,9 +50,10 @@ jobs:
           TF_VAR_mysql_root_password: ${{ secrets.MYSQL_ROOT_PASSWORD }}
           TF_VAR_mysql_database: ${{ secrets.MYSQL_DATABASE }}
           TF_VAR_key_pair_name: ${{ secrets.KEY_PAIR_NAME }}
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
         run: |
           terraform init -input=false
-          terraform apply -auto-approve
+          terraform apply -input=false -auto-approve
           EKS_NAME=$(terraform output -raw eks_cluster_name 2>/dev/null || echo "")
           if [ -n "$EKS_NAME" ]; then
             echo "EKS_CLUSTER_NAME=$EKS_NAME" >> $GITHUB_ENV
