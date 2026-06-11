@@ -11,7 +11,7 @@ jobs:
     env:
       AWS_REGION: us-east-1
       PROJECT_NAME: inventario-devops
-      EKS_CLUSTER_NAME: app-eks-cluster
+      EKS_CLUSTER_NAME: inventario-devops-eks-cluster # Nombre dinámico basado en PROJECT_NAME
     steps:
       - name: Checkout
         uses: actions/checkout@v4
