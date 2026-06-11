@@ -21,8 +21,8 @@ Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, fron
 - Nginx como proxy inverso
 
 ### Base de Datos
-- **MySQL 8** en EC2 pública
-- Acceso restringido desde el clúster EKS
+- **MySQL 8** en instancia EC2 dentro de la VPC
+- Acceso desde EKS usando `SPRING_DATASOURCE_URL` y secret Kubernetes
 
 
 ### Infraestructura (Terraform)
@@ -90,7 +90,7 @@ cd infra/terraform
 
 terraform plan
 
-terraform apply -auto-approve
+TF_VAR_mysql_root_password="<your_mysql_password>" terraform apply -auto-approve
 ```
 
 ---
@@ -100,8 +100,15 @@ terraform apply -auto-approve
 ```bash
 aws elbv2 describe-load-balancers \
   --region us-east-1 \
-  --query 'LoadBalancers[?LoadBalancerName==`prueba_devops_2-frontend-alb`].DNSName' \
+  --query 'LoadBalancers[?Type==`application` && contains(DNSName, `frontend`) == `true`].DNSName' \
   --output text
+```
+
+## 5. Obtener IP de MySQL
+
+```bash
+cd infra/terraform
+terraform output -raw mysql_private_ip
 ```
 
 ---
@@ -135,8 +142,10 @@ EKS Deploy
 ```text
 AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY
-AWS_REGION
-ECR_REGISTRY
+AWS_SESSION_TOKEN
+SPRING_DATASOURCE_URL
+SPRING_DATASOURCE_USERNAME
+SPRING_DATASOURCE_PASSWORD
 MYSQL_ROOT_PASSWORD
 MYSQL_DATABASE
 ```
@@ -155,9 +164,17 @@ Contenido:
 
 ```hcl
 aws_region    = "us-east-1"
-project_name  = "prueba_devops_2"
-key_pair_name = "prueba_2"
+project_name  = "inventario-devops"
+key_pair_name = ""
 ```
+
+Para no subir secretos al repositorio, copie el archivo de ejemplo:
+
+```bash
+cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars
+```
+
+> Nota: `mysql_root_password` no debe quedar en el repositorio. Use `TF_VAR_mysql_root_password` o un archivo `terraform.tfvars` local que no se suba.
 
 ---
 
@@ -177,8 +194,9 @@ key_pair_name = "prueba_2"
 ## Login ECR
 
 ```bash
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 aws ecr get-login-password --region us-east-1 | \
-docker login --username AWS --password-stdin 348374603543.dkr.ecr.us-east-1.amazonaws.com
+  docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
 ```
 
 ---
@@ -188,9 +206,11 @@ docker login --username AWS --password-stdin 348374603543.dkr.ecr.us-east-1.amaz
 ```bash
 cd back-Ventas_SpringBoot/Springboot-API-REST
 
-docker build -t 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-ventas-back:latest .
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REPO=${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/inventario-devops-ventas-back
 
-docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-ventas-back:latest
+docker build -t ${REPO}:latest .
+docker push ${REPO}:latest
 ```
 
 ---
@@ -198,11 +218,13 @@ docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-ventas-
 ## Backend Despachos
 
 ```bash
-cd ../../back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+cd back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
 
-docker build -t 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-despachos-back:latest .
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REPO=${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/inventario-devops-despachos-back
 
-docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-despachos-back:latest
+docker build -t ${REPO}:latest .
+docker push ${REPO}:latest
 ```
 
 ---
@@ -210,44 +232,32 @@ docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-despach
 ## Frontend
 
 ```bash
-cd ../../front_despacho
+cd front_despacho
 
 npm install
-
 npm run build
 
-docker build -t 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-frontend:latest .
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REPO=${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/inventario-devops-frontend
 
-docker push 348374603543.dkr.ecr.us-east-1.amazonaws.com/prueba_devops_2-frontend:latest
+docker build -t ${REPO}:latest .
+docker push ${REPO}:latest
 ```
 
 ---
 
-# Forzar Redeploy ECS (referencia archivada, este proyecto usa EKS)
+# Nota sobre ECS
 
-```bash
-$cluster = "arn:aws:ecs:us-east-1:348374603543:cluster/prueba_devops_2-ecs-cluster"
-
-aws ecs update-service --cluster $cluster \
-  --service ventas-back-service \
-  --force-new-deployment --region us-east-1
-
-aws ecs update-service --cluster $cluster \
-  --service despachos-back-service \
-  --force-new-deployment --region us-east-1
-
-aws ecs update-service --cluster $cluster \
-  --service frontend-service \
-  --force-new-deployment --region us-east-1
-```
+Este repositorio usa EKS en producción. El archivo `.github/workflows/cd.deploy.yml` se conserva solo como referencia histórica y no está activo.
 
 ---
 
 ## Ver imágenes ECR
 
 ```bash
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 aws ecr list-images \
-  --repository-name prueba_devops_2-ventas-back \
+  --repository-name inventario-devops-ventas-back \
   --region us-east-1
 ```
 
@@ -262,7 +272,7 @@ Prueba_DevOps_2/
 │       ├── ci.backend.yml
 │       └── cd.deploy.yml
 ├── infra/
-├── k8s/
+│   └── k8s/
 ├── back-Ventas_SpringBoot/
 ├── back-Despachos_SpringBoot/
 ├── front_despacho/

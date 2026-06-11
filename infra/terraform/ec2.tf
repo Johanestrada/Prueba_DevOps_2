@@ -22,7 +22,7 @@ resource "aws_instance" "mysql" {
 
   subnet_id = aws_subnet.public_subnet.id
 
-  key_name = var.key_pair_name
+  key_name = var.key_pair_name != "" ? var.key_pair_name : null
 
   vpc_security_group_ids = [
     aws_security_group.mysql_sg.id
