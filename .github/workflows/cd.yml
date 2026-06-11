@@ -160,7 +160,9 @@ jobs:
           terraform apply -input=false -auto-approve
           EKS_NAME=$(terraform output -raw eks_cluster_name 2>/dev/null || echo "")
           if [ -n "$EKS_NAME" ]; then
-            echo "EKS_CLUSTER_NAME=$EKS_NAME" >> $GITHUB_ENV
+            echo "EKS_CLUSTER_NAME<<EOF" >> $GITHUB_ENV
+            echo "$EKS_NAME" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
           fi
 
       - name: Diagnose EKS cluster presence
