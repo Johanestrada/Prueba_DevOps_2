@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - deploy
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -20,6 +21,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
@@ -49,24 +51,27 @@ jobs:
 
       - name: Build ventas backend image
         run: |
-          docker buildx build --platform linux/amd64 -t $ECR_VENTAS:${GITHUB_SHA} ./back-Ventas_SpringBoot --load
+          docker buildx build --platform linux/amd64 -t $ECR_VENTAS:${GITHUB_SHA} -t $ECR_VENTAS:latest ./back-Ventas_SpringBoot/Springboot-API-REST --load
       - name: Push ventas image
         run: |
           docker push $ECR_VENTAS:${GITHUB_SHA}
+          docker push $ECR_VENTAS:latest
 
       - name: Build despachos backend image
         run: |
-          docker buildx build --platform linux/amd64 -t $ECR_DESPACHOS:${GITHUB_SHA} ./back-Despachos_SpringBoot --load
+          docker buildx build --platform linux/amd64 -t $ECR_DESPACHOS:${GITHUB_SHA} -t $ECR_DESPACHOS:latest ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO --load
       - name: Push despachos image
         run: |
           docker push $ECR_DESPACHOS:${GITHUB_SHA}
+          docker push $ECR_DESPACHOS:latest
 
       - name: Build frontend image
         run: |
-          docker buildx build --platform linux/amd64 -t $ECR_FRONTEND:${GITHUB_SHA} ./front_despacho --load
+          docker buildx build --platform linux/amd64 -t $ECR_FRONTEND:${GITHUB_SHA} -t $ECR_FRONTEND:latest ./front_despacho --load
       - name: Push frontend image
         run: |
           docker push $ECR_FRONTEND:${GITHUB_SHA}
+          docker push $ECR_FRONTEND:latest
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4

@@ -18,6 +18,13 @@ spec:
         image: 577734557959.dkr.ecr.us-east-1.amazonaws.com/inventario-devops-frontend:latest
         ports:
         - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
         env:
         - name: VENTAS_BACK_HOST
           value: ventas-service:80
