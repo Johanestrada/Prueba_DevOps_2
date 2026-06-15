@@ -3,9 +3,9 @@ name: CI - Backend Build & Test
 
 # Define cuándo se debe ejecutar este flujo de trabajo
 on:
-  # Se activa cada vez que se hace un push a la rama 'develop'
+  # Se activa cada vez que se hace un push a las ramas 'develop' o 'deploy'
   push:
-    branches: [ "develop" ]
+    branches: [ "develop", "deploy" ]
   # También permite ejecutarlo manualmente desde la UI de GitHub
   workflow_dispatch:
 
