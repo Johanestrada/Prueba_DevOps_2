@@ -1,0 +1,106 @@
+services:
+
+  mysql:
+    image: mysql:8
+    container_name: ecommerce-mysql
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_HOST: "%"
+
+    ports:
+      - "3306:3306"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+    networks:
+      - ecommerce-net
+
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ventas-back:
+    build:
+      context: ./back-Ventas_SpringBoot/Springboot-API-REST
+      dockerfile: Dockerfile
+
+    image: ecommerce-ventas-back:1.0
+    container_name: ecommerce-ventas-back
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+
+    environment:
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQLDialect
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+    networks:
+      - ecommerce-net
+
+  despachos-back:
+    build:
+      context: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+      dockerfile: Dockerfile
+
+    image: ecommerce-despachos-back:1.0
+    container_name: ecommerce-despachos-back
+    restart: unless-stopped
+
+    ports:
+      - "8082:8080"
+
+    environment:
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQLDialect
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+    networks:
+      - ecommerce-net
+
+  frontend:
+    build:
+      context: ./front_despacho
+      dockerfile: Dockerfile
+
+    image: ecommerce-frontend:1.0
+    container_name: ecommerce-frontend
+
+    restart: unless-stopped
+
+    ports:
+      - "3000:80"
+
+    environment:
+      - VENTAS_BACK_HOST=ventas-back:8080
+      - DESPACHOS_BACK_HOST=despachos-back:8080
+
+    depends_on:
+      - ventas-back
+      - despachos-back
+
+    networks:
+      - ecommerce-net
+
+volumes:
+  mysql_data:
+
+networks:
+  ecommerce-net:
+    driver: bridge

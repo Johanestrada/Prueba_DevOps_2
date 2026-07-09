@@ -3,8 +3,6 @@ target/
 *.class
 *.jar
 
-# Spring
-application.properties
 
 # Node
 node_modules/
@@ -19,3 +17,27 @@ dist/
 
 # Logs
 *.log
+
+.env
+
+terraform.tfstate
+*.tfstate
+*.tfstate.backup
+.terraform/
+CACHED
+
+# Secrets and local config
+*.tfvars
+terraform.tfvars
+*.pem
+*.key
+*.p12
+
+# Kubernetes local kubeconfig
+.kube/
+.kube/config
+kubeconfig
+
+# Ignore Kubernetes secret manifests
+infra/k8s/*secret*.yaml
+!infra/k8s/*.example.yaml

@@ -26,13 +26,13 @@ public class VentaController {
     @Operation(summary = "Crear una nueva venta", description = "Crea una nueva venta en el sistema")
     @PostMapping
     public ResponseEntity<Venta> crearVenta(@Valid @RequestBody Venta venta){
+        Venta ventaGuardada = ventaService.saveVenta(venta);
         URI location = ServletUriComponentsBuilder
                 .fromCurrentRequest()
                 .path("/{idVenta}")
-                .buildAndExpand(venta.getIdVenta())
+                .buildAndExpand(ventaGuardada.getIdVenta())
                 .toUri();
-        ventaService.saveVenta(venta);
-        return ResponseEntity.created(location).body(venta);
+        return ResponseEntity.created(location).body(ventaGuardada);
     }
 
     @PutMapping("/{idVenta}")

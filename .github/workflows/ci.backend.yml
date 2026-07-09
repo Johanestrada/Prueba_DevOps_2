@@ -1,0 +1,66 @@
+# Nombre del flujo de trabajo que aparecerá en la pestaña "Actions" de GitHub
+name: CI - Backend Build & Test
+
+# Define cuándo se debe ejecutar este flujo de trabajo
+on:
+  # Se activa cada vez que se hace un push a la rama 'develop'
+  push:
+    branches: [ "develop" ]
+  # También permite ejecutarlo manualmente desde la UI de GitHub
+  workflow_dispatch:
+
+# Define los "trabajos" (jobs) que se ejecutarán
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    # Define una matriz para ejecutar los mismos pasos para diferentes servicios
+    strategy:
+      matrix:
+        service:
+          - name: ventas
+            path: back-Ventas_SpringBoot/Springboot-API-REST
+          - name: despachos
+            path: back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+
+    env:
+      MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+      MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+
+    # Define servicios que se ejecutarán junto al job (una base de datos en este caso)
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
+          MYSQL_DATABASE: ${{ env.MYSQL_DATABASE }}
+        ports:
+          - 3306:3306 # Mapea el puerto del contenedor al host del runner
+        options: >-
+          --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 for ${{ matrix.service.name }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven' # Habilita la caché para las dependencias de Maven
+
+      - name: Wait for MySQL to be ready
+        run: |
+          # Espera hasta que MySQL responda antes de continuar
+          until mysqladmin ping -h127.0.0.1 -uroot -p"${{ env.MYSQL_ROOT_PASSWORD }}" --silent; do
+            echo "Waiting for MySQL..."
+            sleep 2
+          done
+          echo "MySQL is up!"
+
+      - name: Run tests for ${{ matrix.service.name }} service
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/${{ env.MYSQL_DATABASE }}
+          SPRING_DATASOURCE_USERNAME: root
+          SPRING_DATASOURCE_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
+        run: mvn -B -f ${{ matrix.service.path }}/pom.xml verify
