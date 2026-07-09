@@ -45,7 +45,9 @@ Proyecto integral de desplegabilidad en AWS con microservicios Spring Boot, fron
 
 A continuación se muestra el diagrama de la arquitectura desplegada en AWS, incluyendo el flujo desde los repositorios, la construcción y almacenamiento de imágenes en ECR, y el despliegue en EKS/Kubernetes:
 
-![Diagrama Arquitectura AWS EKS](infra/AWS_Diagrama.png)
+Se ha actualizado el diagrama por la versión adjunta en el repositorio:
+
+![Diagrama Arquitectura AWS EKS](infra/terraform/diagrama.png)
 
 ---
 
